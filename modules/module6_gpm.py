@@ -4,6 +4,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from utils.data_loader import load_csv, ALL_EVENTS
+from utils.styles import COLORS
 
 FLOOD_WINDOWS = {
     "harvey":        ("2017-08-25", "2017-09-01"),
@@ -100,25 +101,24 @@ def render_module6(event: str):
 
     col_ctrl, col_fact = st.columns([2, 1])
     with col_ctrl:
-        st.markdown('<div class="control-panel"><div class="control-title">Display Options</div>',
-                    unsafe_allow_html=True)
-        c1, c2 = st.columns(2)
-        with c1:
-            show_thr = st.checkbox("Show threshold line", value=True)
-            thr = st.slider("Threshold (mm/day)", 5, 80, 20) if show_thr else 20
-        with c2:
-            show_fw  = st.checkbox("Highlight flood period", value=True)
-            show_cum = st.checkbox("Cumulative overlay", value=False)
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown('<div class="control-title">Display Options</div>',
+                        unsafe_allow_html=True)
+            c1, c2 = st.columns(2)
+            with c1:
+                show_thr = st.checkbox("Show threshold line", value=True)
+                thr = st.slider("Threshold (mm/day)", 5, 80, 20) if show_thr else 20
+            with c2:
+                show_fw  = st.checkbox("Highlight flood period", value=True)
+                show_cum = st.checkbox("Cumulative overlay", value=False)
 
     with col_fact:
         fact = KEY_FACTS.get(event, "")
-        st.markdown(f"""
-        <div class="card" style="height:100%;box-sizing:border-box;">
-            <div class="card-title">📌 {ev.get('label','')} {ev.get('year','')}</div>
-            <p style="font-size:12px;color:var(--text-sub);margin:0;line-height:1.6">{fact}</p>
-        </div>
-        """, unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown(
+                f'<div class="card-title">📌 {ev.get("label","")} {ev.get("year","")}</div>'
+                f'<p style="font-size:var(--fs-xs);color:var(--text-sub);margin:0;line-height:1.6">{fact}</p>',
+                unsafe_allow_html=True)
 
     peak_val   = df["precip_mm_day"].max()
     peak_date  = df.loc[df["precip_mm_day"].idxmax(), "date"].strftime("%b %d")
@@ -151,7 +151,7 @@ def render_module6(event: str):
     """, unsafe_allow_html=True)
 
     fig = go.Figure()
-    bar_colors = ["#ef4444" if v >= thr else "#93c5fd" for v in df["precip_mm_day"]]
+    bar_colors = [COLORS["red"] if v >= thr else COLORS["bar_light"] for v in df["precip_mm_day"]]
     fig.add_trace(go.Bar(
         x=df["date"], y=df["precip_mm_day"], marker_color=bar_colors,
         name="Daily Rainfall",
@@ -163,40 +163,39 @@ def render_module6(event: str):
         fig.add_trace(go.Scatter(
             x=df["date"], y=df["cumsum"], mode="lines",
             name="Cumulative (mm)", yaxis="y2",
-            line=dict(color="#6366f1", width=2, dash="dot"),
+            line=dict(color=COLORS["indigo"], width=2, dash="dot"),
         ))
 
     if show_thr:
-        fig.add_hline(y=thr, line_dash="dash", line_color="#d97706", line_width=1.5,
+        fig.add_hline(y=thr, line_dash="dash", line_color=COLORS["yellow"], line_width=1.5,
                       annotation_text=f"  {thr} mm threshold",
-                      annotation_font_color="#d97706", annotation_font_size=11)
+                      annotation_font_color=COLORS["yellow"], annotation_font_size=11)
 
     if show_fw and event in FLOOD_WINDOWS:
         fig.add_vrect(x0=FLOOD_WINDOWS[event][0], x1=FLOOD_WINDOWS[event][1],
                       fillcolor="rgba(239,68,68,0.08)", layer="below", line_width=0,
                       annotation_text="🌊 Flood Period",
                       annotation_position="top left",
-                      annotation_font_color="#dc2626", annotation_font_size=11)
+                      annotation_font_color=COLORS["red_dark"], annotation_font_size=11)
 
     fig.update_layout(
-        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
-        font=dict(color="#0f172a", family="Inter"),
+        plot_bgcolor=COLORS["bg"], paper_bgcolor=COLORS["bg"],
+        font=dict(color=COLORS["text"], family="Inter"),
         height=360, margin=dict(l=10, r=10, t=10, b=20),
-        xaxis=dict(showgrid=False, showline=True, linecolor="#e2e8f0",
-                   tickfont=dict(color="#94a3b8", size=11)),
-        yaxis=dict(title="mm/day", showgrid=True, gridcolor="#f1f5f9",
-                   tickfont=dict(color="#94a3b8", size=11),
-                   title_font=dict(size=11, color="#94a3b8")),
+        xaxis=dict(showgrid=False, showline=True, linecolor=COLORS["border"],
+                   tickfont=dict(color=COLORS["axis"], size=11)),
+        yaxis=dict(title="mm/day", showgrid=True, gridcolor=COLORS["bg3"],
+                   tickfont=dict(color=COLORS["axis"], size=11),
+                   title_font=dict(size=11, color=COLORS["axis"])),
         yaxis2=dict(title="Cumulative (mm)", overlaying="y", side="right",
-                    showgrid=False, tickfont=dict(color="#6366f1", size=10),
-                    title_font=dict(size=10, color="#6366f1")) if show_cum else {},
-        legend=dict(bgcolor="rgba(255,255,255,0.9)", bordercolor="#e2e8f0",
+                    showgrid=False, tickfont=dict(color=COLORS["indigo"], size=10),
+                    title_font=dict(size=10, color=COLORS["indigo"])) if show_cum else {},
+        legend=dict(bgcolor="rgba(255,255,255,0.9)", bordercolor=COLORS["border"],
                     borderwidth=1, font=dict(size=11)),
         bargap=0.15,
     )
-    st.markdown('<div class="card" style="padding:16px">', unsafe_allow_html=True)
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-    st.markdown("</div>", unsafe_allow_html=True)
+    with st.container(border=True):
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
     st.markdown("""
     <div class="callout">

@@ -9,6 +9,7 @@ from skimage.filters import threshold_otsu
 from utils.data_loader import (
     load_tif, EVENT_CENTERS, EVENT_ZOOM, EVENT_BOUNDS, rgba_to_b64,
 )
+from utils.styles import COLORS
 
 
 def apply_threshold(sar, thr, perm=None):
@@ -85,17 +86,17 @@ def render_module1(event: str):
     col_ctrl, col_map = st.columns([1, 2])
 
     with col_ctrl:
-        st.markdown('<div class="control-panel"><div class="control-title">Threshold Control</div>',
-                    unsafe_allow_html=True)
-        thr = st.slider("SAR VH Threshold (dB)", -30.0, -5.0,
-                        round(otsu_val, 1), 0.5,
-                        help="Pixels darker than this = classified as flooded")
-        if st.button("Apply Otsu Auto-Threshold"):
-            thr = round(otsu_val, 1)
-            st.rerun()
-        remove_perm = st.checkbox("Remove permanent water bodies", value=True,
-                                  help="Masks pre-existing rivers/lakes using JRC data")
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown('<div class="control-title">Threshold Control</div>',
+                        unsafe_allow_html=True)
+            thr = st.slider("SAR VH Threshold (dB)", -30.0, -5.0,
+                            round(otsu_val, 1), 0.5,
+                            help="Pixels darker than this = classified as flooded")
+            if st.button("Apply Otsu Auto-Threshold"):
+                thr = round(otsu_val, 1)
+                st.rerun()
+            remove_perm = st.checkbox("Remove permanent water bodies", value=True,
+                                      help="Masks pre-existing rivers/lakes using JRC data")
 
         flood_mask   = apply_threshold(sar_arr, thr, perm_arr if remove_perm else None)
         total_valid  = int(np.sum(~np.isnan(sar_arr)))
@@ -129,40 +130,37 @@ def render_module1(event: str):
     with col_map:
         hist_v, edges = np.histogram(valid, bins=80)
         centers = (edges[:-1] + edges[1:]) / 2
-        colors  = ["#3b82f6" if c < thr else "#cbd5e1" for c in centers]
+        colors  = [COLORS["blue"] if c < thr else "#cbd5e1" for c in centers]
 
         fig = go.Figure(go.Bar(
             x=centers, y=hist_v, marker_color=colors,
             hovertemplate="%{x:.1f} dB: %{y:,} pixels<extra></extra>",
         ))
-        fig.add_vline(x=thr, line_color="#ef4444", line_width=2, line_dash="dash",
+        fig.add_vline(x=thr, line_color=COLORS["red"], line_width=2, line_dash="dash",
                       annotation_text=f"  Threshold {thr:.1f} dB",
-                      annotation_font_color="#ef4444", annotation_font_size=11)
-        fig.add_vline(x=otsu_val, line_color="#16a34a", line_width=1.5, line_dash="dot",
+                      annotation_font_color=COLORS["red"], annotation_font_size=11)
+        fig.add_vline(x=otsu_val, line_color=COLORS["green"], line_width=1.5, line_dash="dot",
                       annotation_text=f"  Otsu {otsu_val:.1f}",
-                      annotation_font_color="#16a34a", annotation_font_size=10,
+                      annotation_font_color=COLORS["green"], annotation_font_size=10,
                       annotation_position="bottom right")
         fig.update_layout(
-            plot_bgcolor="#fff", paper_bgcolor="#fff",
-            font=dict(color="#0f172a", family="Inter"),
+            plot_bgcolor=COLORS["bg"], paper_bgcolor=COLORS["bg"],
+            font=dict(color=COLORS["text"], family="Inter"),
             height=150, margin=dict(l=5, r=5, t=5, b=25),
             xaxis=dict(title="SAR VH (dB)", showgrid=False,
-                       tickfont=dict(color="#94a3b8", size=10),
-                       title_font=dict(size=10, color="#94a3b8")),
-            yaxis=dict(showgrid=True, gridcolor="#f1f5f9",
-                       tickfont=dict(color="#94a3b8", size=10)),
+                       tickfont=dict(color=COLORS["axis"], size=10),
+                       title_font=dict(size=10, color=COLORS["axis"])),
+            yaxis=dict(showgrid=True, gridcolor=COLORS["bg3"],
+                       tickfont=dict(color=COLORS["axis"], size=10)),
             showlegend=False,
         )
-        st.markdown('<div class="card" style="padding:12px;margin-bottom:10px">',
-                    unsafe_allow_html=True)
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
         with st.spinner("Rendering flood map..."):
             m = make_map(event, sar_arr, flood_mask)
-        st.markdown('<div class="map-frame">', unsafe_allow_html=True)
-        st_folium(m, width=None, height=350, returned_objects=[])
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st_folium(m, width=None, height=350, returned_objects=[])
         st.caption("🔵 Blue = flood detected · Gray = land · Adjust the slider to explore")
 
     st.markdown(f"""

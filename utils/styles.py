@@ -33,12 +33,24 @@ def inject_css():
         --mono:        'JetBrains Mono', monospace;
         --radius:      10px;
         --shadow:      0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+        /* ── Font scale ── */
+        --fs-xs:       11px;
+        --fs-sm:       13px;
+        --fs-base:     15px;
+        --fs-md:       17px;
+        --fs-lg:       20px;
+        --fs-xl:       24px;
+        /* ── Sidebar palette ── */
+        --sb-text:       #94a3b8;
+        --sb-text-bright:#f1f5f9;
+        --sb-text-dim:   #64748b;
+        --sb-card:       #1e2533;
     }
 
     /* ── Global ──────────────────────────────────────────────── */
     html, body, [class*="css"] {
         font-family: var(--font) !important;
-        font-size: 15px !important;        /* base +2pt */
+        font-size: var(--fs-base) !important;        /* base +2pt */
         color: var(--text) !important;
     }
     .stApp { background: var(--bg) !important; }
@@ -58,47 +70,76 @@ def inject_css():
     [data-testid="stSidebar"] p,
     [data-testid="stSidebar"] span,
     [data-testid="stSidebar"] div,
-    [data-testid="stSidebar"] label { color: #94a3b8 !important; }
-    [data-testid="stSidebar"] .stCaption { color: #64748b !important; }
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] li,
+    [data-testid="stSidebar"] td,
+    [data-testid="stSidebar"] th,
+    [data-testid="stSidebar"] h1,
+    [data-testid="stSidebar"] h2,
+    [data-testid="stSidebar"] h3,
+    [data-testid="stSidebar"] h4,
+    [data-testid="stSidebar"] h5,
+    [data-testid="stSidebar"] h6 { color: var(--sb-text) !important; }
+    [data-testid="stSidebar"] .stCaption { color: var(--sb-text-dim) !important; }
+
+    /* Sidebar widget labels & values — light on dark */
+    [data-testid="stSidebar"] .stSlider > label,
+    [data-testid="stSidebar"] .stSelectbox > label,
+    [data-testid="stSidebar"] .stMultiSelect > label,
+    [data-testid="stSidebar"] .stRadio > label,
+    [data-testid="stSidebar"] .stCheckbox > label,
+    [data-testid="stSidebar"] .stTextInput > label { color: #94a3b8 !important; }
+    [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label,
+    [data-testid="stSidebar"] .stCheckbox label { color: #cbd5e1 !important; }
+    [data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] span,
+    [data-testid="stSidebar"] .stMultiSelect div[data-baseweb="select"] span { color: #f1f5f9 !important; }
+    [data-testid="stSidebar"] .stTextInput input { color: #f1f5f9 !important; }
 
     .sidebar-top {
-        padding: 16px 14px 12px;
+        padding: 18px 14px 14px;
         border-bottom: 0.5px solid rgba(255,255,255,0.07);
         margin-bottom: 4px;
     }
     .sidebar-logo-row {
-        display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+        display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
     }
     .sidebar-logo-img {
-        width: 36px; height: 36px; border-radius: 8px; object-fit: cover;
+        width: 44px; height: 44px; border-radius: 9px; object-fit: cover;
         border: 1px solid rgba(255,255,255,0.12);
     }
     .sidebar-brand { line-height: 1.3; }
     .sidebar-brand-main {
-        color: #f1f5f9 !important; font-weight: 600; font-size: 15px !important;
+        color: var(--sb-text-bright) !important; font-weight: 600; font-size: var(--fs-lg) !important;
     }
     .sidebar-brand-sub {
-        color: #94a3b8 !important; font-size: 11px !important; letter-spacing: 0.03em;
+        color: var(--sb-text) !important; font-size: var(--fs-sm) !important; letter-spacing: 0.03em;
     }
+    /* Section labels: +2pt larger than nav button text (14px → 16px) */
     .sidebar-section-label {
         padding: 12px 14px 5px;
-        font-size: 11px !important; color: #64748b !important;
+        font-size: var(--fs-md) !important; color: var(--sb-text-dim) !important;
         letter-spacing: 0.07em; text-transform: uppercase; font-weight: 600;
+        text-align: left !important;
     }
     .event-badge {
-        background: #1e2533; border-radius: 8px;
+        background: var(--sb-card); border-radius: 8px;
         padding: 10px 12px; margin: 6px 0;
+        text-align: left !important;
     }
-    .event-badge-name { color: #f1f5f9 !important; font-weight: 500; font-size: 14px !important; }
-    .event-badge-sub  { color: #94a3b8 !important; font-size: 12px !important; margin-top: 3px; }
+    .event-badge-name { color: var(--sb-text-bright) !important; font-weight: 500; font-size: var(--fs-base) !important; text-align: left !important; }
+    .event-badge-sub  { color: var(--sb-text) !important; font-size: var(--fs-xs) !important; margin-top: 3px; text-align: left !important; }
+
+    /* Sidebar global left-align */
+    [data-testid="stSidebar"] [data-testid="stVerticalBlock"] { text-align: left !important; }
+    [data-testid="stSidebar"] .stMarkdown { text-align: left !important; }
 
     /* ── Sidebar nav buttons ─────────────────────────────────── */
     [data-testid="stSidebar"] .stButton > button {
         background: transparent !important;
-        color: #94a3b8 !important;
+        color: var(--sb-text) !important;
         border: none !important;
         border-radius: 7px !important;
-        font-size: 14px !important;
+        font-size: var(--fs-base) !important;
         font-weight: 400 !important;
         padding: 8px 12px !important;
         text-align: left !important;
@@ -107,23 +148,26 @@ def inject_css():
         transition: all 0.15s !important;
     }
     [data-testid="stSidebar"] .stButton > button:hover {
-        background: #1e2533 !important;
-        color: #f1f5f9 !important;
+        background: var(--sb-card) !important;
+        color: var(--sb-text-bright) !important;
     }
 
     /* ── Main header ─────────────────────────────────────────── */
     .page-header { margin-bottom: 16px; }
-    .page-title  { font-size: 22px !important; font-weight: 600; color: var(--text) !important; }
-    .page-sub    { color: var(--text-sub) !important; font-size: 14px !important; margin-top: 4px; }
+    .page-title  { font-size: var(--fs-lg) !important; font-weight: 600; color: var(--text) !important; }
+    .page-sub    { color: var(--text-sub) !important; font-size: var(--fs-base) !important; margin-top: 4px; }
+    .header-logo {
+        width: 36px; height: 36px; border-radius: 8px;
+        object-fit: cover; vertical-align: middle; margin-right: 10px;
+    }
+    .section-label-badge {
+        font-size: var(--fs-sm) !important; font-weight: 500;
+        color: var(--blue) !important; margin-bottom: 4px; letter-spacing: 0.04em;
+    }
 
     /* ── Cards ───────────────────────────────────────────────── */
-    .card {
-        background: var(--bg2); border-radius: var(--radius);
-        border: 0.5px solid var(--border); padding: 16px;
-        box-shadow: var(--shadow);
-    }
     .card-title {
-        font-size: 14px !important; font-weight: 500; color: var(--text) !important;
+        font-size: var(--fs-base) !important; font-weight: 500; color: var(--text) !important;
         margin-bottom: 14px;
     }
 
@@ -138,23 +182,23 @@ def inject_css():
     .metric-card.yellow { background: var(--yellow-light); }
     .metric-card.red    { background: var(--red-light); }
     .metric-card.indigo { background: var(--indigo-light); }
-    .metric-label { font-size: 12px !important; font-weight: 500; margin-bottom: 6px; }
+    .metric-label { font-size: var(--fs-xs) !important; font-weight: 500; margin-bottom: 6px; }
     .metric-card.blue   .metric-label { color: #1e40af !important; }
     .metric-card.green  .metric-label { color: #166534 !important; }
     .metric-card.yellow .metric-label { color: #92400e !important; }
     .metric-card.red    .metric-label { color: #991b1b !important; }
     .metric-card.indigo .metric-label { color: #3730a3 !important; }
     .metric-value {
-        font-size: 22px !important; font-weight: 700; color: var(--text) !important;
+        font-size: var(--fs-xl) !important; font-weight: 700; color: var(--text) !important;
         font-family: var(--mono); line-height: 1;
     }
-    .metric-unit { font-size: 12px !important; color: var(--text-muted) !important; margin-top: 5px; }
+    .metric-unit { font-size: var(--fs-xs) !important; color: var(--text-muted) !important; margin-top: 5px; }
 
     /* ── Callout boxes ───────────────────────────────────────── */
     .callout {
         background: var(--blue-light); border-left: 3px solid var(--blue);
         border-radius: 0 var(--radius) var(--radius) 0;
-        padding: 11px 14px; font-size: 14px !important;
+        padding: 11px 14px; font-size: var(--fs-base) !important;
         color: var(--text-sub) !important; margin: 12px 0;
     }
     .callout.warn   { background: var(--yellow-light); border-left-color: var(--yellow); }
@@ -170,16 +214,18 @@ def inject_css():
         display: flex; align-items: center; justify-content: center;
         font-size: 17px; flex-shrink: 0;
     }
-    .section-title { font-size: 16px !important; font-weight: 600; color: var(--text) !important; margin: 0; }
-    .section-desc  { font-size: 13px !important; color: var(--text-sub) !important; margin-top: 2px; }
+    .section-title { font-size: var(--fs-md) !important; font-weight: 600; color: var(--text) !important; margin: 0; }
+    .section-desc  { font-size: var(--fs-sm) !important; color: var(--text-sub) !important; margin-top: 2px; }
 
-    /* ── Control panel ───────────────────────────────────────── */
-    .control-panel {
-        background: var(--bg2); border: 0.5px solid var(--border);
-        border-radius: var(--radius); padding: 14px 16px; margin-bottom: 12px;
+    /* ── Container styling (st.container(border=True)) ─── */
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        background: var(--bg2) !important;
+        border: 0.5px solid var(--border) !important;
+        border-radius: var(--radius) !important;
+        box-shadow: var(--shadow);
     }
     .control-title {
-        font-size: 12px !important; font-weight: 600; color: var(--text-sub) !important;
+        font-size: var(--fs-xs) !important; font-weight: 600; color: var(--text-sub) !important;
         text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 10px;
     }
 
@@ -187,22 +233,22 @@ def inject_css():
     .stSlider > label, .stSelectbox > label, .stMultiSelect > label,
     .stRadio > label, .stCheckbox > label, .stTextInput > label {
         color: var(--text-sub) !important;
-        font-size: 14px !important; font-weight: 500 !important;
+        font-size: var(--fs-base) !important; font-weight: 500 !important;
     }
     .stRadio div[role="radiogroup"] label,
     .stCheckbox label {
-        color: var(--text) !important; font-size: 14px !important;
+        color: var(--text) !important; font-size: var(--fs-base) !important;
     }
     .stSelectbox div[data-baseweb="select"] span,
     .stMultiSelect div[data-baseweb="select"] span {
-        color: var(--text) !important; font-size: 14px !important;
+        color: var(--text) !important; font-size: var(--fs-base) !important;
     }
     /* Main area buttons (non-sidebar) */
     .main .stButton > button,
     [data-testid="stMainBlockContainer"] .stButton > button {
         background: var(--blue) !important; color: #ffffff !important;
         border: none !important; border-radius: 8px !important;
-        font-weight: 500 !important; font-size: 14px !important;
+        font-weight: 500 !important; font-size: var(--fs-base) !important;
         font-family: var(--font) !important;
         padding: 9px 18px !important; transition: all 0.15s !important;
     }
@@ -212,20 +258,20 @@ def inject_css():
     .lb-wrap { background: var(--bg2); border: 0.5px solid var(--border);
                border-radius: var(--radius); overflow: hidden; }
     .lb-head { padding: 12px 16px; border-bottom: 0.5px solid var(--border);
-               font-weight: 500; font-size: 14px !important; color: var(--text) !important; }
+               font-weight: 500; font-size: var(--fs-base) !important; color: var(--text) !important; }
     .lb-row  { display: flex; align-items: center; gap: 10px; padding: 10px 16px;
                border-bottom: 0.5px solid var(--border-light);
-               font-size: 13px !important; transition: background 0.1s; }
+               font-size: var(--fs-sm) !important; transition: background 0.1s; }
     .lb-row:last-child { border-bottom: none; }
     .lb-row:hover { background: var(--bg3); }
-    .lb-rank  { width: 22px; font-family: var(--mono); font-size: 12px !important; color: var(--text-muted) !important; }
+    .lb-rank  { width: 22px; font-family: var(--mono); font-size: var(--fs-xs) !important; color: var(--text-muted) !important; }
     .lb-rank.gold   { color: #d97706 !important; font-weight: 700; }
     .lb-rank.silver { color: #64748b !important; font-weight: 700; }
     .lb-rank.bronze { color: #b45309 !important; font-weight: 700; }
     .lb-team  { flex: 1; font-weight: 500; color: var(--text) !important; }
-    .lb-event { font-size: 12px !important; color: var(--text-muted) !important; flex: 1; }
+    .lb-event { font-size: var(--fs-xs) !important; color: var(--text-muted) !important; flex: 1; }
     .lb-score { font-family: var(--mono); font-weight: 600;
-                font-size: 14px !important; color: var(--green) !important; }
+                font-size: var(--fs-base) !important; color: var(--green) !important; }
     .lb-bar-wrap { width: 70px; }
     .lb-bar-bg   { background: var(--bg3); border-radius: 999px; height: 4px; }
     .lb-bar-fill { background: var(--green); border-radius: 999px; height: 4px; }
@@ -235,7 +281,7 @@ def inject_css():
 
     /* ── Chips ───────────────────────────────────────────────── */
     .chip { display: inline-block; padding: 3px 9px; border-radius: 999px;
-            font-size: 12px !important; font-weight: 500; }
+            font-size: var(--fs-xs) !important; font-weight: 500; }
     .chip-blue   { background: var(--blue-light);   color: var(--blue) !important; }
     .chip-green  { background: var(--green-light);  color: var(--green) !important; }
     .chip-yellow { background: var(--yellow-light); color: var(--yellow) !important; }
@@ -247,3 +293,27 @@ def inject_css():
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
     </style>
     """, unsafe_allow_html=True)
+
+
+COLORS = {
+    "text": "#0f172a",
+    "text_sub": "#374151",
+    "text_muted": "#6b7280",
+    "blue": "#2563eb",
+    "blue_light": "#bfdbfe",
+    "blue_dark": "#1d4ed8",
+    "cyan": "#06b6d4",
+    "green": "#16a34a",
+    "green_light": "#10b981",
+    "red": "#ef4444",
+    "red_dark": "#dc2626",
+    "yellow": "#d97706",
+    "indigo": "#6366f1",
+    "indigo_dark": "#4f46e5",
+    "bg": "#ffffff",
+    "bg3": "#f1f5f9",
+    "border": "#e2e8f0",
+    "axis": "#94a3b8",
+    "bar_light": "#93c5fd",
+    "bar_flood": "#ef4444",
+}

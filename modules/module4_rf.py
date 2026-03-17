@@ -1,6 +1,6 @@
 """
-AI Flood Classifier — Random Forest trained across ALL available flood events.
-Train/test split is event-based to prevent spatial data leakage.
+AI Flood Classifier — Random Forest with event-wise z-score normalization.
+Fixed held-out test event for fair leaderboard competition.
 """
 
 import streamlit as st
@@ -11,14 +11,16 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (accuracy_score, precision_score,
                              recall_score, f1_score, confusion_matrix)
 from utils.data_loader import load_all_rf_samples, ALL_EVENTS
+from utils.normalization import validate_events, normalize_by_event
+from utils.leaderboard import add_entry, get_sorted
 from utils.styles import COLORS
+import os
 import time
 
-
-@st.cache_resource
-def get_leaderboard() -> list:
-    return []
-
+HELD_OUT_EVENT = "dubai"
+LEADERBOARD_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)), "data", "leaderboard.json"
+)
 
 FEATURE_INFO = {
     "SAR_VH":         ("📡", "SAR VH",       "Radar backscatter (dB) — core water signal"),
@@ -31,25 +33,15 @@ FEATURE_INFO = {
 ALL_FEATURES = list(FEATURE_INFO.keys())
 
 
-def event_based_split(df: pd.DataFrame, test_events: list[str]):
-    """
-    Split by event to avoid spatial leakage.
-    Pixels from the same flood event are spatially correlated —
-    a random row-level split would leak spatial information into the test set.
-    """
-    test_mask  = df["event"].isin(test_events)
-    train_df   = df[~test_mask].copy()
-    test_df    = df[test_mask].copy()
-    return train_df, test_df
+def event_based_split(df: pd.DataFrame, held_out_event: str):
+    test_mask = df["event"] == held_out_event
+    return df[~test_mask].copy(), df[test_mask].copy()
 
 
 def train_rf(df: pd.DataFrame, features: list[str],
              n_trees: int, max_depth: int,
-             test_events: list[str], seed: int = 42):
-    X_all = df[features].values
-    y_all = df["label"].values
-
-    train_df, test_df = event_based_split(df, test_events)
+             held_out_event: str, seed: int = 42):
+    train_df, test_df = event_based_split(df, held_out_event)
 
     if len(train_df) == 0 or len(test_df) == 0:
         return None, None
@@ -67,60 +59,48 @@ def train_rf(df: pd.DataFrame, features: list[str],
 
     cm = confusion_matrix(y_te, y_pred)
     metrics = {
-        "accuracy":   accuracy_score(y_te, y_pred),
-        "precision":  precision_score(y_te, y_pred, zero_division=0),
-        "recall":     recall_score(y_te, y_pred, zero_division=0),
-        "f1":         f1_score(y_te, y_pred, zero_division=0),
-        "n_train":    len(X_tr),
-        "n_test":     len(X_te),
-        "train_events": [e for e in df["event"].unique() if e not in test_events],
-        "test_events":  test_events,
+        "accuracy":     accuracy_score(y_te, y_pred),
+        "precision":    precision_score(y_te, y_pred, zero_division=0),
+        "recall":       recall_score(y_te, y_pred, zero_division=0),
+        "f1":           f1_score(y_te, y_pred, zero_division=0),
+        "n_train":      len(X_tr),
+        "n_test":       len(X_te),
+        "train_events": [e for e in df["event"].unique() if e != held_out_event],
+        "test_event":   held_out_event,
         "cm":           cm.tolist(),
     }
     importance = dict(zip(features, clf.feature_importances_))
     return metrics, importance
 
 
-# ── Leaderboard ───────────────────────────────────────────────────
-def render_leaderboard(board: list):
-    if not board:
-        st.markdown(
-            '<div class="lb-wrap">'
-            '<div class="lb-head">🏆 Team Leaderboard</div>'
-            '<div style="padding:12px 16px;font-size:13px;color:#6b7280">'
-            'No submissions yet — train a model and hit <b>Submit</b>!'
-            '</div></div>',
-            unsafe_allow_html=True,
-        )
-        return
-
-    sboard = sorted(board, key=lambda x: x["accuracy"], reverse=True)
-    best   = sboard[0]["accuracy"]
-    icons  = ["🥇","🥈","🥉"]
-    cls_   = ["gold","silver","bronze"]
-
-    rows = ""
-    for i, e in enumerate(sboard[:10]):
-        icon = icons[i] if i < 3 else f"#{i+1}"
-        cls  = cls_[i]  if i < 3 else ""
-        bw   = int(e["accuracy"] / best * 100)
-        rows += (
-            f'<div class="lb-row">'
-            f'<div class="lb-rank {cls}">{icon}</div>'
-            f'<div class="lb-team">{e["team"]}</div>'
-            f'<div class="lb-event">{e.get("test_events","")}</div>'
-            f'<div class="lb-bar-wrap"><div class="lb-bar-bg">'
-            f'<div class="lb-bar-fill" style="width:{bw}%"></div>'
-            f'</div></div>'
-            f'<div class="lb-score">{e["accuracy"]*100:.1f}%</div>'
-            f'</div>'
-        )
-    st.markdown(
-        f'<div class="lb-wrap">'
-        f'<div class="lb-head">🏆 Team Leaderboard</div>'
-        f'{rows}</div>',
-        unsafe_allow_html=True,
-    )
+def generate_hints(metrics: dict, features: list[str], n_trees: int) -> list[str]:
+    """Return up to 2 prioritized hints based on model results."""
+    rules = [
+        (
+            len(features) == 1,
+            "피처를 하나만 쓰고 있어요. 서로 다른 종류의 정보(레이더 + 지형 등)를 조합해보세요.",
+        ),
+        (
+            metrics["recall"] < 0.6,
+            "Recall이 낮습니다 — 실제 홍수 지역을 많이 놓치고 있어요. "
+            "SAR_VH 피처가 빠져 있다면 추가해보세요.",
+        ),
+        (
+            metrics["precision"] < 0.6,
+            "Precision이 낮습니다 — 홍수가 아닌 곳을 홍수로 잘못 예측하고 있어요. "
+            "elevation이나 slope를 추가하면 도움이 될 수 있어요.",
+        ),
+        (
+            n_trees < 30 and metrics["f1"] < 0.7,
+            "트리 수가 적습니다. 50~100으로 늘려보세요.",
+        ),
+        (
+            metrics["f1"] > 0.85,
+            "훌륭합니다! 피처 수를 줄여도 비슷한 성능이 나오는지 실험해보세요 — "
+            "적은 데이터로 같은 결과를 내는 것이 더 좋은 모델입니다.",
+        ),
+    ]
+    return [msg for cond, msg in rules if cond][:2]
 
 
 # ── Feature importance (Plotly — no HTML parser issues) ──────────
@@ -178,6 +158,49 @@ def render_confusion_matrix(cm: list):
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
 
+def render_leaderboard_from_json():
+    """Render leaderboard from JSON file, sorted by F1."""
+    entries = get_sorted(LEADERBOARD_PATH)
+    if not entries:
+        st.markdown(
+            '<div class="lb-wrap">'
+            '<div class="lb-head">🏆 Team Leaderboard (F1 Score)</div>'
+            '<div style="padding:12px 16px;font-size:13px;color:#6b7280">'
+            'No submissions yet — train a model and hit <b>Submit</b>!'
+            '</div></div>',
+            unsafe_allow_html=True,
+        )
+        return
+
+    best = entries[0]["f1"]
+    icons = ["🥇", "🥈", "🥉"]
+    cls_ = ["gold", "silver", "bronze"]
+
+    rows = ""
+    for i, e in enumerate(entries[:10]):
+        icon = icons[i] if i < 3 else f"#{i+1}"
+        cls = cls_[i] if i < 3 else ""
+        bw = int(e["f1"] / best * 100) if best > 0 else 0
+        feat_short = ", ".join(e.get("features", []))
+        rows += (
+            f'<div class="lb-row">'
+            f'<div class="lb-rank {cls}">{icon}</div>'
+            f'<div class="lb-team">{e["team"]}</div>'
+            f'<div class="lb-event">{feat_short}</div>'
+            f'<div class="lb-bar-wrap"><div class="lb-bar-bg">'
+            f'<div class="lb-bar-fill" style="width:{bw}%"></div>'
+            f'</div></div>'
+            f'<div class="lb-score">{e["f1"]*100:.1f}%</div>'
+            f'</div>'
+        )
+    st.markdown(
+        f'<div class="lb-wrap">'
+        f'<div class="lb-head">🏆 Team Leaderboard (F1 Score)</div>'
+        f'{rows}</div>',
+        unsafe_allow_html=True,
+    )
+
+
 # ── Main render ───────────────────────────────────────────────────
 def render_module4(available_events: list[str]):
 
@@ -188,29 +211,30 @@ def render_module4(available_events: list[str]):
             <div class="section-title">AI Flood Classifier</div>
             <div class="section-desc">
                 Train a Random Forest model across multiple flood events —
-                tune parameters and compete for the best accuracy.
+                tune parameters and compete for the best F1 score.
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Context callout ───────────────────────────────────────────
-    st.markdown("""
+    held_out_label = ALL_EVENTS.get(HELD_OUT_EVENT, {}).get("label", HELD_OUT_EVENT)
+    held_out_year = ALL_EVENTS.get(HELD_OUT_EVENT, {}).get("year", "")
+
+    st.markdown(f"""
     <div class="callout">
         <strong>From Observation to Prediction</strong> &nbsp;
-        In the previous tabs you explored individual flood events using satellite data.
-        Now we combine data from <em>all available events</em> to train an AI model that generalizes
-        across different geographies and flood types.
-        The train/test split is <strong>event-based</strong> — the model is trained on some events
-        and evaluated on held-out events it has never seen, preventing spatial data leakage.
+        We combine data from multiple flood events to train an AI model.
+        Features are <strong>normalized per-event</strong> so the model learns flood patterns,
+        not geography. All teams are evaluated on
+        <strong>{held_out_label} ({held_out_year})</strong> — a flood the model has never seen.
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Load combined data ────────────────────────────────────────
+    # ── Load + validate + normalize ────────────────────────────────
     with st.spinner("Loading training data from all events..."):
-        df = load_all_rf_samples(available_events)
+        raw_df = load_all_rf_samples(available_events)
 
-    if df is None or len(df) == 0:
+    if raw_df is None or len(raw_df) == 0:
         st.markdown("""
         <div class="callout warn">
             <strong>No training data found</strong><br>
@@ -220,40 +244,59 @@ def render_module4(available_events: list[str]):
         """, unsafe_allow_html=True)
         return
 
-    drop_cols = [c for c in df.columns if c not in ALL_FEATURES + ["label", "event"]]
-    df = df.drop(columns=drop_cols, errors="ignore").dropna()
+    drop_cols = [c for c in raw_df.columns if c not in ALL_FEATURES + ["label", "event"]]
+    raw_df = raw_df.drop(columns=drop_cols, errors="ignore").dropna()
 
-    ev_counts = df.groupby("event").size().to_dict()
-    ev_list   = list(ev_counts.keys())
+    valid_df, excluded = validate_events(raw_df)
+    if excluded:
+        excl_str = ", ".join(
+            f"{ALL_EVENTS.get(e, {}).get('label', e)} ({reason})"
+            for e, reason in excluded
+        )
+        st.caption(f"⚠️ Excluded events: {excl_str}")
 
-    # ── Data summary ──────────────────────────────────────────────
-    n_flood    = int((df["label"] == 1).sum())
+    if HELD_OUT_EVENT not in valid_df["event"].unique():
+        st.error(f"Held-out event '{HELD_OUT_EVENT}' has no valid data. Cannot proceed.")
+        return
+
+    df = normalize_by_event(valid_df)
+
+    train_events = [e for e in df["event"].unique() if e != HELD_OUT_EVENT]
+    if len(train_events) == 0:
+        st.error("No training events available after filtering.")
+        return
+    if len(train_events) == 1:
+        st.warning("⚠️ Training on only 1 event — results may not generalize. "
+                    "Add more event data for better performance.")
+
+    # ── Data summary ───────────────────────────────────────────────
+    n_flood = int((df["label"] == 1).sum())
     n_nonflood = int((df["label"] == 0).sum())
-    n_events   = len(ev_list)
+    n_events = len(df["event"].unique())
 
     st.markdown(f"""
     <div class="metric-row">
         <div class="metric-card blue">
             <div class="metric-label">Total Samples</div>
             <div class="metric-value">{len(df):,}</div>
-            <div class="metric-unit">across all events</div>
+            <div class="metric-unit">{n_events} events (normalized)</div>
         </div>
         <div class="metric-card red">
-            <div class="metric-label">Flood Samples</div>
+            <div class="metric-label">Flood</div>
             <div class="metric-value">{n_flood:,}</div>
         </div>
         <div class="metric-card green">
-            <div class="metric-label">Non-flood Samples</div>
+            <div class="metric-label">Non-flood</div>
             <div class="metric-value">{n_nonflood:,}</div>
         </div>
         <div class="metric-card indigo">
-            <div class="metric-label">Events Loaded</div>
-            <div class="metric-value">{n_events}</div>
+            <div class="metric-label">Test Event</div>
+            <div class="metric-value" style="font-size:1.1rem">{held_out_label}</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Parameter panel + results ─────────────────────────────────
+    # ── Parameter panel ────────────────────────────────────────────
     col_l, col_r = st.columns([1, 1.5])
 
     with col_l:
@@ -261,7 +304,6 @@ def render_module4(available_events: list[str]):
             st.markdown('<div class="control-title">Model Parameters</div>',
                         unsafe_allow_html=True)
 
-            # Feature selection
             st.markdown("**Select features** (min 2)")
             selected_features = []
             fc = st.columns(2)
@@ -274,126 +316,147 @@ def render_module4(available_events: list[str]):
                         selected_features.append(feat)
 
             st.markdown("---")
-            n_trees   = st.slider("Number of trees", 10, 300, 100, 10)
+            n_trees = st.slider("Number of trees", 10, 300, 100, 10)
             max_depth = st.slider("Max tree depth (0 = unlimited)", 0, 20, 5)
 
-            # Event-based test split selector
             st.markdown("---")
-            st.markdown("**Test events** (held-out for evaluation)")
-            st.caption("These events are NOT used in training — simulates real-world generalization.")
+            st.markdown(f"**Test event:** {held_out_label} ({held_out_year})")
+            st.caption("Fixed for fair competition — all teams evaluated on the same event.")
 
-            ev_labels_map = {k: f"{ALL_EVENTS[k]['label']} ({ALL_EVENTS[k]['year']})"
-                             for k in ev_list}
-            test_events = st.multiselect(
-                "Hold out for testing",
-                options=ev_list,
-                default=ev_list[:1] if ev_list else [],
-                format_func=lambda k: ev_labels_map.get(k, k),
-                label_visibility="collapsed",
-            )
-
-        disabled = len(selected_features) < 2 or len(test_events) == 0 or \
-                   len(test_events) >= len(ev_list)
-        if len(selected_features) < 2:
+        disabled = len(selected_features) < 2
+        if disabled:
             st.warning("Select at least 2 features.")
-        elif len(test_events) == 0:
-            st.warning("Select at least 1 test event.")
-        elif len(test_events) >= len(ev_list):
-            st.warning("Keep at least 1 event for training.")
 
         run = st.button("🚀 Train AI Model!", disabled=disabled,
                         use_container_width=True)
 
     with col_r:
         if run and not disabled:
-            with st.spinner(f"Training Random Forest on {len(ev_list)-len(test_events)} events..."):
+            with st.spinner(f"Training Random Forest on {len(train_events)} events..."):
                 t0 = time.time()
                 metrics, importance = train_rf(
-                    df, selected_features, n_trees, max_depth, test_events
+                    df, selected_features, n_trees, max_depth, HELD_OUT_EVENT
                 )
                 elapsed = time.time() - t0
 
             if metrics is None:
-                st.error("Training failed — check that test events have data.")
+                st.error("Training failed — check that test event has data.")
             else:
-                st.session_state["last_result"] = {
+                result = {
                     "metrics": metrics, "importance": importance,
                     "features": selected_features, "n_trees": n_trees,
                     "max_depth": max_depth, "elapsed": elapsed,
                 }
+                st.session_state["last_result"] = result
+
+                # ── Append to run history ──────────────────────────
+                if "run_history" not in st.session_state:
+                    st.session_state["run_history"] = []
+                history = st.session_state["run_history"]
+                history.append({
+                    "run_id": len(history) + 1,
+                    "features": selected_features,
+                    "n_trees": n_trees,
+                    "max_depth": max_depth,
+                    "f1": metrics["f1"],
+                    "accuracy": metrics["accuracy"],
+                    "precision": metrics["precision"],
+                    "recall": metrics["recall"],
+                    "timestamp": time.strftime("%H:%M:%S"),
+                })
+                if len(history) > 10:
+                    st.session_state["run_history"] = history[-10:]
 
         if "last_result" in st.session_state:
             res = st.session_state["last_result"]
-            m   = res["metrics"]
-            acc = m["accuracy"]
+            m = res["metrics"]
+            f1_val = m["f1"]
 
-            clr  = "green" if acc >= 0.90 else "blue" if acc >= 0.80 else "yellow" if acc >= 0.70 else "red"
-            emoj = "🏆" if acc >= 0.90 else "⭐" if acc >= 0.80 else "📈" if acc >= 0.70 else "🔧"
+            clr = ("green" if f1_val >= 0.85 else "blue" if f1_val >= 0.70
+                   else "yellow" if f1_val >= 0.55 else "red")
+            emoj = ("🏆" if f1_val >= 0.85 else "⭐" if f1_val >= 0.70
+                    else "📈" if f1_val >= 0.55 else "🔧")
 
-            # Score cards
+            # ── Score cards ────────────────────────────────────────
             st.markdown(f"""
             <div class="metric-row">
                 <div class="metric-card {clr}">
-                    <div class="metric-label">{emoj} Accuracy</div>
-                    <div class="metric-value">{acc*100:.1f}%</div>
+                    <div class="metric-label">{emoj} F1 Score</div>
+                    <div class="metric-value">{f1_val*100:.1f}%</div>
                 </div>
                 <div class="metric-card blue">
+                    <div class="metric-label">Accuracy</div>
+                    <div class="metric-value">{m['accuracy']*100:.1f}%</div>
+                </div>
+                <div class="metric-card green">
                     <div class="metric-label">Precision</div>
                     <div class="metric-value">{m['precision']*100:.1f}%</div>
                 </div>
-                <div class="metric-card green">
+                <div class="metric-card indigo">
                     <div class="metric-label">Recall</div>
                     <div class="metric-value">{m['recall']*100:.1f}%</div>
-                </div>
-                <div class="metric-card indigo">
-                    <div class="metric-label">F1 Score</div>
-                    <div class="metric-value">{m['f1']*100:.1f}%</div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
-            # Train/test event breakdown
-            train_ev_str = ", ".join([ALL_EVENTS[e]["label"] for e in m["train_events"]
-                                      if e in ALL_EVENTS])
-            test_ev_str  = ", ".join([ALL_EVENTS[e]["label"] for e in m["test_events"]
-                                      if e in ALL_EVENTS])
+            # ── Train/test breakdown ───────────────────────────────
+            train_ev_str = ", ".join(
+                ALL_EVENTS[e]["label"] for e in m["train_events"] if e in ALL_EVENTS
+            )
+            test_ev_label = ALL_EVENTS.get(m["test_event"], {}).get("label", m["test_event"])
             st.markdown(f"""
             <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;
                         padding:8px 12px;background:var(--bg3);border-radius:8px">
                 <b>Trained on:</b> {train_ev_str} ({m['n_train']} samples)
                 &nbsp;·&nbsp;
-                <b>Tested on:</b> {test_ev_str} ({m['n_test']} samples)
+                <b>Tested on:</b> {test_ev_label} ({m['n_test']} samples)
                 &nbsp;·&nbsp; {res['elapsed']:.1f}s
             </div>
             """, unsafe_allow_html=True)
 
-            # Two-column: bar chart + confusion matrix
+            # ── Hints ──────────────────────────────────────────────
+            hints = generate_hints(m, res["features"], res["n_trees"])
+            if hints:
+                hint_html = "<br>".join(hints)
+                st.markdown(f"""
+                <div class="callout">
+                    <strong>💡 Tips</strong><br>{hint_html}
+                </div>
+                """, unsafe_allow_html=True)
+
+            # ── Charts: performance bar + confusion matrix ─────────
             cc1, cc2 = st.columns(2)
             with cc1:
                 with st.container(border=True):
                     st.markdown('<div class="card-title">Performance</div>',
                                 unsafe_allow_html=True)
                     fig = go.Figure(go.Bar(
-                        x=["Accuracy","Precision","Recall","F1"],
-                        y=[m["accuracy"],m["precision"],m["recall"],m["f1"]],
-                        marker_color=[COLORS["blue"],COLORS["cyan"],COLORS["green_light"],COLORS["indigo"]],
-                        text=[f"{v*100:.1f}%" for v in [m["accuracy"],m["precision"],m["recall"],m["f1"]]],
-                        textposition="outside", textfont=dict(size=11, color=COLORS["text_sub"]),
+                        x=["F1", "Accuracy", "Precision", "Recall"],
+                        y=[m["f1"], m["accuracy"], m["precision"], m["recall"]],
+                        marker_color=[COLORS["blue"], COLORS["cyan"],
+                                      COLORS["green_light"], COLORS["indigo"]],
+                        text=[f"{v*100:.1f}%" for v in
+                              [m["f1"], m["accuracy"], m["precision"], m["recall"]]],
+                        textposition="outside",
+                        textfont=dict(size=11, color=COLORS["text_sub"]),
                     ))
-                    fig.add_hline(y=0.9, line_dash="dot", line_color=COLORS["yellow"],
-                                  annotation_text="  Target 90%",
-                                  annotation_font_color=COLORS["yellow"], annotation_font_size=10)
+                    fig.add_hline(y=0.85, line_dash="dot", line_color=COLORS["yellow"],
+                                  annotation_text="  Target 85%",
+                                  annotation_font_color=COLORS["yellow"],
+                                  annotation_font_size=10)
                     fig.update_layout(
                         plot_bgcolor=COLORS["bg"], paper_bgcolor=COLORS["bg"],
                         font=dict(family="Inter"), height=190,
-                        margin=dict(l=5,r=5,t=5,b=5),
-                        yaxis=dict(range=[0,1.15], tickformat=".0%",
+                        margin=dict(l=5, r=5, t=5, b=5),
+                        yaxis=dict(range=[0, 1.15], tickformat=".0%",
                                    showgrid=True, gridcolor=COLORS["bg3"],
                                    tickfont=dict(color=COLORS["axis"], size=10)),
-                        xaxis=dict(showgrid=False, tickfont=dict(color=COLORS["text_sub"],size=11)),
+                        xaxis=dict(showgrid=False,
+                                   tickfont=dict(color=COLORS["text_sub"], size=11)),
                         showlegend=False,
                     )
-                    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar":False})
+                    st.plotly_chart(fig, use_container_width=True,
+                                    config={"displayModeBar": False})
 
             with cc2:
                 with st.container(border=True):
@@ -401,23 +464,24 @@ def render_module4(available_events: list[str]):
                                 unsafe_allow_html=True)
                     render_confusion_matrix(m["cm"])
 
-            # Feature importance
+            # ── Feature importance ─────────────────────────────────
             with st.container(border=True):
-                st.markdown('<div class="card-title">Feature Importance — What the AI relied on most</div>',
-                            unsafe_allow_html=True)
+                st.markdown(
+                    '<div class="card-title">Feature Importance — What the AI relied on most</div>',
+                    unsafe_allow_html=True)
                 render_feature_importance(res["importance"])
 
-            # Submit to leaderboard
-            board = get_leaderboard()
+            # ── Submit to leaderboard ──────────────────────────────
             if st.button("📤 Submit to Leaderboard", use_container_width=True):
-                board.append({
-                    "team":        st.session_state.get("team_name", "Team A"),
-                    "accuracy":    acc,
-                    "test_events": ", ".join(m["test_events"]),
-                    "features":    ", ".join(res["features"]),
-                    "time":        time.strftime("%H:%M:%S"),
-                })
-                st.success(f"Submitted! Accuracy: {acc*100:.1f}%")
+                team = st.session_state.get("team_name", "Team A")
+                add_entry(
+                    LEADERBOARD_PATH, HELD_OUT_EVENT,
+                    team=team, f1=m["f1"], accuracy=m["accuracy"],
+                    precision=m["precision"], recall=m["recall"],
+                    features=res["features"], n_trees=res["n_trees"],
+                    max_depth=res["max_depth"],
+                )
+                st.success(f"Submitted! F1: {m['f1']*100:.1f}%")
 
         else:
             st.markdown("""
@@ -432,19 +496,72 @@ def render_module4(available_events: list[str]):
             </div>
             """, unsafe_allow_html=True)
 
-    # ── Leaderboard ───────────────────────────────────────────────
-    st.markdown("---")
-    render_leaderboard(get_leaderboard())
+    # ── Run History ────────────────────────────────────────────────
+    history = st.session_state.get("run_history", [])
+    if history:
+        st.markdown("---")
+        st.markdown("### 📊 Run History")
+        reversed_history = list(reversed(history))
+        rows_html = ""
+        for i, run in enumerate(reversed_history):
+            feat_str = ", ".join(
+                FEATURE_INFO[f][1] if f in FEATURE_INFO else f
+                for f in run["features"]
+            )
+            f1_pct = f"{run['f1']*100:.1f}%"
+            acc_pct = f"{run['accuracy']*100:.1f}%"
 
-    # ── Tips ──────────────────────────────────────────────────────
+            if i < len(reversed_history) - 1:
+                prev = reversed_history[i + 1]
+                delta = run["f1"] - prev["f1"]
+                delta_str = f"{delta*100:+.1f}%"
+                delta_color = COLORS["green"] if delta > 0 else COLORS["red"] if delta < 0 else COLORS["text_muted"]
+                vs_prev = f'<span style="color:{delta_color};font-weight:600">{delta_str}</span>'
+            else:
+                vs_prev = "—"
+
+            rows_html += (
+                f"<tr>"
+                f"<td style='text-align:center;font-weight:600'>#{run['run_id']}</td>"
+                f"<td>{feat_str}</td>"
+                f"<td style='text-align:center'>{run['n_trees']}</td>"
+                f"<td style='text-align:center'>{run['max_depth']}</td>"
+                f"<td style='text-align:center;font-weight:600'>{f1_pct}</td>"
+                f"<td style='text-align:center'>{acc_pct}</td>"
+                f"<td style='text-align:center'>{vs_prev}</td>"
+                f"</tr>"
+            )
+
+        st.markdown(f"""
+        <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead>
+                <tr style="border-bottom:2px solid var(--border);color:var(--text-muted)">
+                    <th style="padding:8px 6px;text-align:center">#</th>
+                    <th style="padding:8px 6px">Features</th>
+                    <th style="padding:8px 6px;text-align:center">Trees</th>
+                    <th style="padding:8px 6px;text-align:center">Depth</th>
+                    <th style="padding:8px 6px;text-align:center">F1</th>
+                    <th style="padding:8px 6px;text-align:center">Acc</th>
+                    <th style="padding:8px 6px;text-align:center">vs Prev</th>
+                </tr>
+            </thead>
+            <tbody>
+                {rows_html}
+            </tbody>
+        </table>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ── Leaderboard ────────────────────────────────────────────────
+    st.markdown("---")
+    render_leaderboard_from_json()
+
+    # ── Tips ───────────────────────────────────────────────────────
     st.markdown("""
     <div class="callout">
-        <strong>Tips to Improve Your Score</strong> &nbsp;
-        Try adding more trees. Does combining SAR_VH with elevation help?
-        Try testing on a geographically different event from your training set — does performance drop?<br><br>
         <strong>Think About It</strong> &nbsp;
         What does low Recall mean for flood prediction?
         In a real disaster, would you rather have high Precision or high Recall — and why?
-        What happens when you test on a continent different from where you trained?
     </div>
     """, unsafe_allow_html=True)

@@ -60,34 +60,17 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Section 1 nav ─────────────────────────────────────────────
-    st.markdown('<div class="sidebar-section-label">1. Flood Event Detection</div>',
+    # ── 0. Team ───────────────────────────────────────────────────
+    st.markdown('<div class="sidebar-section-label">0. Team</div>',
                 unsafe_allow_html=True)
-
-    for key in ["rainfall", "optical", "sar"]:
-        p = PAGES[key]
-        is_active = (active == key)
-        btn_style = "nav-btn-active" if is_active else "nav-btn"
-        if st.button(f"{p['icon']}  {p['label']}", key=f"nav_{key}",
-                     use_container_width=True):
-            st.session_state.active_page = key
-            st.rerun()
+    team_name = st.text_input("Team Name", value="Team A",
+                               placeholder="e.g. Team Alpha",
+                               label_visibility="collapsed")
+    st.session_state.team_name = team_name
 
     st.markdown("---")
 
-    # ── Section 2 nav ─────────────────────────────────────────────
-    st.markdown('<div class="sidebar-section-label">2. AI Flood Classifier</div>',
-                unsafe_allow_html=True)
-
-    p = PAGES["classifier"]
-    if st.button(f"{p['icon']}  {p['label']}", key="nav_classifier",
-                 use_container_width=True):
-        st.session_state.active_page = "classifier"
-        st.rerun()
-
-    st.markdown("---")
-
-    # ── Event selector (only relevant for section 1) ──────────────
+    # ── 1. Flood Event ────────────────────────────────────────────
     available = get_available_events()
     if not available:
         st.error("No event data found in data/.\nRun the Colab GEE Export notebook first.")
@@ -97,55 +80,65 @@ with st.sidebar:
         e = ALL_EVENTS[k]
         return f"{e['label']} ({e['year']})"
 
-    if active != "classifier":
-        st.markdown('<div class="sidebar-section-label">Flood Event</div>',
-                    unsafe_allow_html=True)
-        selected_event = st.selectbox(
-            "Event", options=available,
-            format_func=event_label,
-            label_visibility="collapsed"
-        )
-        ev    = ALL_EVENTS[selected_event]
-        color = ev.get("color", "#2563eb")
-        st.markdown(f"""
-        <div class="event-badge" style="border-left:3px solid {color}">
-            <div class="event-badge-name">{ev['label']} {ev['year']}</div>
-            <div class="event-badge-sub">📍 {ev['region']}</div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.markdown("---")
-    else:
-        selected_event = available[0]
-        ev = ALL_EVENTS[selected_event]
-
-    # ── Team name ─────────────────────────────────────────────────
-    st.markdown('<div class="sidebar-section-label">Team</div>',
+    st.markdown('<div class="sidebar-section-label">1. Flood Event</div>',
                 unsafe_allow_html=True)
-    team_name = st.text_input("Team Name", value="Team A",
-                               placeholder="e.g. Team Alpha",
-                               label_visibility="collapsed")
-    st.session_state.team_name = team_name
+    selected_event = st.selectbox(
+        "Event", options=available,
+        format_func=event_label,
+        label_visibility="collapsed"
+    )
+    ev    = ALL_EVENTS[selected_event]
+    color = ev.get("color", "#2563eb")
+    st.markdown(f"""
+    <div class="event-badge" style="border-left:3px solid {color}">
+        <div class="event-badge-name">{ev['label']} {ev['year']}</div>
+        <div class="event-badge-sub">📍 {ev['region']}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # ── 2. Flood Event Detection nav ──────────────────────────────
+    st.markdown('<div class="sidebar-section-label">2. Flood Event Detection</div>',
+                unsafe_allow_html=True)
+
+    for key in ["rainfall", "optical", "sar"]:
+        p = PAGES[key]
+        if st.button(f"{p['icon']}  {p['label']}", key=f"nav_{key}",
+                     use_container_width=True):
+            st.session_state.active_page = key
+            st.rerun()
+
+    st.markdown("---")
+
+    # ── 3. AI Flood Classifier nav ────────────────────────────────
+    st.markdown('<div class="sidebar-section-label">3. AI Flood Classifier</div>',
+                unsafe_allow_html=True)
+
+    p = PAGES["classifier"]
+    if st.button(f"{p['icon']}  {p['label']}", key="nav_classifier",
+                 use_container_width=True):
+        st.session_state.active_page = "classifier"
+        st.rerun()
 
     st.markdown("---")
     st.caption("📱 Scan the QR code on screen to open on your phone.")
 
 
 # ── Main header ───────────────────────────────────────────────────
-logo_small = (f'<img src="{LOGO_B64}" style="width:36px;height:36px;border-radius:8px;'
-              f'object-fit:cover;vertical-align:middle;margin-right:10px;">'
+logo_small = (f'<img src="{LOGO_B64}" class="header-logo">'
               if LOGO_B64 else "🌊 ")
 
 page_info = PAGES[active]
-section_label = ("1. Flood Event Detection" if page_info["section"] == 1
-                 else "2. AI Flood Classifier")
+section_label = ("2. Flood Event Detection" if page_info["section"] == 1
+                 else "3. AI Flood Classifier")
 
 col_title, col_badge = st.columns([3, 1])
 with col_title:
     st.markdown(f"""
     <div class="page-header">
         <div>
-            <div style="font-size:12px;font-weight:500;color:#2563eb;
-                        margin-bottom:4px;letter-spacing:0.04em">{section_label}</div>
+            <div class="section-label-badge">{section_label}</div>
             <div class="page-title" style="display:flex;align-items:center">
                 {logo_small}AI Flood Inundation Mapping
             </div>
@@ -162,7 +155,7 @@ with col_badge:
         st.markdown(f"""
         <div style="text-align:right;padding-top:6px">
             <span class="chip chip-blue">{ev['label']}</span><br>
-            <span style="font-size:12px;color:#475569">{ev['region']} · {ev['year']}</span>
+            <span style="font-size:var(--fs-xs);color:var(--text-sub)">{ev['region']} · {ev['year']}</span>
         </div>
         """, unsafe_allow_html=True)
 

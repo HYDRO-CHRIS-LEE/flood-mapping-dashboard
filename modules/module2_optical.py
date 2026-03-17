@@ -75,36 +75,34 @@ def render_module2(event: str):
 
     col_l, col_r = st.columns([1, 2])
     with col_l:
-        st.markdown('<div class="control-panel"><div class="control-title">Layer Settings</div>',
-                    unsafe_allow_html=True)
-        layer = st.radio("Band",
-                         ["RGB (True Color)", "NDWI (Water Index)",
-                          "NDWI Change (After − Before)"],
-                         help="NDWI: blue = water, brown = dry land")
-        period = "after"
-        if layer != "NDWI Change (After − Before)":
-            period = st.radio("Time period", ["before", "after"])
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown('<div class="control-title">Layer Settings</div>',
+                        unsafe_allow_html=True)
+            layer = st.radio("Band",
+                             ["RGB (True Color)", "NDWI (Water Index)",
+                              "NDWI Change (After − Before)"],
+                             help="NDWI: blue = water, brown = dry land")
+            period = "after"
+            if layer != "NDWI Change (After − Before)":
+                period = st.radio("Time period", ["before", "after"])
 
         if "NDWI" in layer:
-            st.markdown("""
-            <div class="card" style="font-size:12px">
-                <div class="card-title">NDWI Color Guide</div>
-                <div style="display:flex;flex-direction:column;gap:6px;line-height:1.5">
-                    <div><span style="background:#2166ac;padding:1px 8px;border-radius:3px;color:white;font-size:10px">Water</span> &nbsp; NDWI &gt; 0.3</div>
-                    <div><span style="background:#92c5de;padding:1px 8px;border-radius:3px;font-size:10px">Wet soil</span> &nbsp; shallow / wetland</div>
-                    <div><span style="background:#f7f7f7;padding:1px 8px;border-radius:3px;border:1px solid #eee;font-size:10px">Neutral</span></div>
-                    <div><span style="background:#d6604d;padding:1px 8px;border-radius:3px;color:white;font-size:10px">Dry land</span></div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            with st.container(border=True):
+                st.markdown(
+                    '<div class="card-title">NDWI Color Guide</div>'
+                    '<div style="display:flex;flex-direction:column;gap:6px;line-height:1.5;font-size:var(--fs-xs)">'
+                    '<div><span style="background:#2166ac;padding:1px 8px;border-radius:3px;color:white;font-size:10px">Water</span> &nbsp; NDWI &gt; 0.3</div>'
+                    '<div><span style="background:#92c5de;padding:1px 8px;border-radius:3px;font-size:10px">Wet soil</span> &nbsp; shallow / wetland</div>'
+                    '<div><span style="background:#f7f7f7;padding:1px 8px;border-radius:3px;border:1px solid #eee;font-size:10px">Neutral</span></div>'
+                    '<div><span style="background:#d6604d;padding:1px 8px;border-radius:3px;color:white;font-size:10px">Dry land</span></div>'
+                    '</div>',
+                    unsafe_allow_html=True)
 
     with col_r:
         with st.spinner("Rendering map..."):
             m = make_map(event, layer, period)
-        st.markdown('<div class="map-frame">', unsafe_allow_html=True)
-        st_folium(m, width=None, height=460, returned_objects=[])
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st_folium(m, width=None, height=460, returned_objects=[])
 
     if layer == "NDWI Change (After − Before)":
         st.markdown("""

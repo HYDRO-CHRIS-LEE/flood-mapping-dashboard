@@ -15,7 +15,9 @@ from utils.styles import COLORS
 def apply_threshold(sar, thr, perm=None):
     flood = (sar < thr).astype(np.uint8)
     if perm is not None:
-        flood = flood & (~(perm > 0.5)).astype(np.uint8)
+        h = min(flood.shape[0], perm.shape[0])
+        w = min(flood.shape[1], perm.shape[1])
+        flood = flood[:h, :w] & (~(perm[:h, :w] > 0.5)).astype(np.uint8)
     return flood
 
 

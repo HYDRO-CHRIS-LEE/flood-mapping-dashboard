@@ -17,7 +17,6 @@ from utils.leaderboard import add_entry, get_sorted
 from utils.styles import COLORS
 import os
 import time
-import textwrap
 
 HELD_OUT_EVENTS = ["dubai", "germany2021", "libya2023", "china2020"]
 LEADERBOARD_PATH = os.path.join(
@@ -377,114 +376,40 @@ def render_module4(available_events: list[str]):
     """, unsafe_allow_html=True)
 
     # ── Hyperparameter guide ──────────────────────────────────────
+    _hp_html = (
+        '<div class="hp-guide">'
+        '<div class="hp-guide-title">📖 Hyperparameter Guide</div>'
+        # ── Features ──
+        '<div class="hp-section-label">Features — What data does the model see?</div>'
+        '<div class="hp-grid">'
+        '<div class="hp-item"><span class="hp-icon">💧</span><span><span class="hp-name">NDWI</span> — <span class="hp-desc">Green/NIR ratio detecting water surfaces.</span> <span class="hp-tip">💡 Core feature — usually keep enabled</span></span></div>'
+        '<div class="hp-item"><span class="hp-icon">🏙️</span><span><span class="hp-name">MNDWI</span> — <span class="hp-desc">Modified water index, better in urban areas.</span> <span class="hp-tip">💡 Pair with NDWI for urban floods</span></span></div>'
+        '<div class="hp-item"><span class="hp-icon">🏔️</span><span><span class="hp-name">Elevation</span> — <span class="hp-desc">Height above sea level (m).</span> <span class="hp-tip">💡 Low elevation = higher flood risk</span></span></div>'
+        '<div class="hp-item"><span class="hp-icon">📐</span><span><span class="hp-name">Slope</span> — <span class="hp-desc">Terrain steepness (°).</span> <span class="hp-tip">💡 Flat terrain floods more easily</span></span></div>'
+        '<div class="hp-item"><span class="hp-icon">🌊</span><span><span class="hp-name">Permanent Water</span> — <span class="hp-desc">JRC flag for permanent water bodies.</span> <span class="hp-tip">💡 Helps distinguish flood from lakes</span></span></div>'
+        '</div>'
+        # ── Preprocessing ──
+        '<div class="hp-section-label">Preprocessing — How is the data prepared?</div>'
+        '<div class="hp-grid">'
+        '<div class="hp-item"><span class="hp-icon">⚖️</span><span><span class="hp-name">Feature Scaling</span> — <span class="hp-desc">Normalizes value ranges across features.</span> <span class="hp-tip">💡 RF usually doesn\'t need this — experiment!</span></span></div>'
+        '<div class="hp-item"><span class="hp-icon">🔍</span><span><span class="hp-name">Outlier Removal</span> — <span class="hp-desc">Removes extreme values that may be noise.</span> <span class="hp-tip">💡 IQR is gentler, Z-score is stricter</span></span></div>'
+        '<div class="hp-item"><span class="hp-icon">⚙️</span><span><span class="hp-name">Class Balance</span> — <span class="hp-desc">Handles imbalance between flood/non-flood samples.</span> <span class="hp-tip">💡 Try when one class is much smaller</span></span></div>'
+        '<div class="hp-item"><span class="hp-icon">📊</span><span><span class="hp-name">Sample Size</span> — <span class="hp-desc">Use a subset of data for faster experiments.</span> <span class="hp-tip">💡 Start small (30–50%), then use 100%</span></span></div>'
+        '</div>'
+        # ── Model Parameters ──
+        '<div class="hp-section-label">Model Parameters — How does the Random Forest work?</div>'
+        '<div class="hp-grid">'
+        '<div class="hp-item"><span class="hp-icon">🌲</span><span><span class="hp-name">Number of Trees</span> — <span class="hp-desc">How many decision trees vote together.</span> <span class="hp-tip">💡 100–200 is a good range; more = slower</span></span></div>'
+        '<div class="hp-item"><span class="hp-icon">📏</span><span><span class="hp-name">Max Tree Depth</span> — <span class="hp-desc">How deep each tree can grow (0 = unlimited).</span> <span class="hp-tip">💡 5–10 prevents overfitting</span></span></div>'
+        '<div class="hp-item"><span class="hp-icon">🍃</span><span><span class="hp-name">Min Samples per Leaf</span> — <span class="hp-desc">Minimum data points in each leaf node.</span> <span class="hp-tip">💡 Larger = simpler model, less overfitting</span></span></div>'
+        '<div class="hp-item"><span class="hp-icon">🔀</span><span><span class="hp-name">Max Features per Split</span> — <span class="hp-desc">How many features each split considers.</span> <span class="hp-tip">💡 "sqrt" is the standard default</span></span></div>'
+        '<div class="hp-item"><span class="hp-icon">🎲</span><span><span class="hp-name">Bootstrap</span> — <span class="hp-desc">Each tree trains on a random subset of data.</span> <span class="hp-tip">💡 Usually keep ON — adds diversity</span></span></div>'
+        '<div class="hp-item"><span class="hp-icon">⚖️</span><span><span class="hp-name">Class Weight</span> — <span class="hp-desc">Auto-adjusts for rare flood samples.</span> <span class="hp-tip">💡 Enable when flood samples are much fewer</span></span></div>'
+        '</div>'
+        '</div>'
+    )
     with st.container(border=True):
-        st.markdown(textwrap.dedent("""\
-        <div class="hp-guide">
-            <div class="hp-guide-title">📖 Hyperparameter Guide</div>
-
-            <div class="hp-section-label">Features — What data does the model see?</div>
-            <div class="hp-grid">
-                <div class="hp-item">
-                    <span class="hp-icon">💧</span>
-                    <span><span class="hp-name">NDWI</span> —
-                    <span class="hp-desc">Green/NIR ratio detecting water surfaces.</span>
-                    <span class="hp-tip">💡 Core feature — usually keep enabled</span></span>
-                </div>
-                <div class="hp-item">
-                    <span class="hp-icon">🏙️</span>
-                    <span><span class="hp-name">MNDWI</span> —
-                    <span class="hp-desc">Modified water index, better in urban areas.</span>
-                    <span class="hp-tip">💡 Pair with NDWI for urban floods</span></span>
-                </div>
-                <div class="hp-item">
-                    <span class="hp-icon">🏔️</span>
-                    <span><span class="hp-name">Elevation</span> —
-                    <span class="hp-desc">Height above sea level (m).</span>
-                    <span class="hp-tip">💡 Low elevation = higher flood risk</span></span>
-                </div>
-                <div class="hp-item">
-                    <span class="hp-icon">📐</span>
-                    <span><span class="hp-name">Slope</span> —
-                    <span class="hp-desc">Terrain steepness (°).</span>
-                    <span class="hp-tip">💡 Flat terrain floods more easily</span></span>
-                </div>
-                <div class="hp-item">
-                    <span class="hp-icon">🌊</span>
-                    <span><span class="hp-name">Permanent Water</span> —
-                    <span class="hp-desc">JRC flag for permanent water bodies.</span>
-                    <span class="hp-tip">💡 Helps distinguish flood from lakes</span></span>
-                </div>
-            </div>
-
-            <div class="hp-section-label">Preprocessing — How is the data prepared?</div>
-            <div class="hp-grid">
-                <div class="hp-item">
-                    <span class="hp-icon">⚖️</span>
-                    <span><span class="hp-name">Feature Scaling</span> —
-                    <span class="hp-desc">Normalizes value ranges across features.</span>
-                    <span class="hp-tip">💡 RF usually doesn't need this — experiment!</span></span>
-                </div>
-                <div class="hp-item">
-                    <span class="hp-icon">🔍</span>
-                    <span><span class="hp-name">Outlier Removal</span> —
-                    <span class="hp-desc">Removes extreme values that may be noise.</span>
-                    <span class="hp-tip">💡 IQR is gentler, Z-score is stricter</span></span>
-                </div>
-                <div class="hp-item">
-                    <span class="hp-icon">⚙️</span>
-                    <span><span class="hp-name">Class Balance</span> —
-                    <span class="hp-desc">Handles imbalance between flood/non-flood samples.</span>
-                    <span class="hp-tip">💡 Try when one class is much smaller</span></span>
-                </div>
-                <div class="hp-item">
-                    <span class="hp-icon">📊</span>
-                    <span><span class="hp-name">Sample Size</span> —
-                    <span class="hp-desc">Use a subset of data for faster experiments.</span>
-                    <span class="hp-tip">💡 Start small (30–50%), then use 100%</span></span>
-                </div>
-            </div>
-
-            <div class="hp-section-label">Model Parameters — How does the Random Forest work?</div>
-            <div class="hp-grid">
-                <div class="hp-item">
-                    <span class="hp-icon">🌲</span>
-                    <span><span class="hp-name">Number of Trees</span> —
-                    <span class="hp-desc">How many decision trees vote together.</span>
-                    <span class="hp-tip">💡 100–200 is a good range; more = slower</span></span>
-                </div>
-                <div class="hp-item">
-                    <span class="hp-icon">📏</span>
-                    <span><span class="hp-name">Max Tree Depth</span> —
-                    <span class="hp-desc">How deep each tree can grow (0 = unlimited).</span>
-                    <span class="hp-tip">💡 5–10 prevents overfitting</span></span>
-                </div>
-                <div class="hp-item">
-                    <span class="hp-icon">🍃</span>
-                    <span><span class="hp-name">Min Samples per Leaf</span> —
-                    <span class="hp-desc">Minimum data points in each leaf node.</span>
-                    <span class="hp-tip">💡 Larger = simpler model, less overfitting</span></span>
-                </div>
-                <div class="hp-item">
-                    <span class="hp-icon">🔀</span>
-                    <span><span class="hp-name">Max Features per Split</span> —
-                    <span class="hp-desc">How many features each split considers.</span>
-                    <span class="hp-tip">💡 "sqrt" is the standard default</span></span>
-                </div>
-                <div class="hp-item">
-                    <span class="hp-icon">🎲</span>
-                    <span><span class="hp-name">Bootstrap</span> —
-                    <span class="hp-desc">Each tree trains on a random subset of data.</span>
-                    <span class="hp-tip">💡 Usually keep ON — adds diversity</span></span>
-                </div>
-                <div class="hp-item">
-                    <span class="hp-icon">⚖️</span>
-                    <span><span class="hp-name">Class Weight</span> —
-                    <span class="hp-desc">Auto-adjusts for rare flood samples.</span>
-                    <span class="hp-tip">💡 Enable when flood samples are much fewer</span></span>
-                </div>
-            </div>
-        </div>
-        """), unsafe_allow_html=True)
+        st.markdown(_hp_html, unsafe_allow_html=True)
 
     # ── Parameter panel ────────────────────────────────────────────
     col_l, col_r = st.columns([1, 1.5])

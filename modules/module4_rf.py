@@ -373,11 +373,6 @@ def render_module4(available_events: list[str]):
             <div class="metric-label">Non-flood</div>
             <div class="metric-value">{n_nonflood:,}</div>
         </div>
-        <div class="metric-card indigo">
-            <div class="metric-label">Test Events</div>
-            <div class="metric-value" style="font-size:1.1rem">{len(available_held_out)}</div>
-            <div class="metric-unit">held-out for evaluation</div>
-        </div>
     </div>
     """, unsafe_allow_html=True)
 

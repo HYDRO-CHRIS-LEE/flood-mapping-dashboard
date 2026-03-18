@@ -16,6 +16,7 @@ DATA_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 ALL_EVENTS = {
     "harvey":       {"label": "Hurricane Harvey",          "year": 2017, "region": "Houston, TX, USA",           "color": "#ef4444"},
     "pakistan":     {"label": "Pakistan Mega Flood",        "year": 2022, "region": "Sindh Province, Pakistan",   "color": "#06b6d4"},
+    "dubai":        {"label": "Dubai Flash Flood",          "year": 2024, "region": "UAE",                        "color": "#f59e0b"},
     "myanmar2015":  {"label": "Myanmar Cyclone Komen",      "year": 2015, "region": "Irrawaddy Delta, Myanmar",   "color": "#8b5cf6"},
     "louisiana2016":{"label": "Louisiana Flood",            "year": 2016, "region": "Baton Rouge, LA, USA",       "color": "#f97316"},
     "srilanka2017": {"label": "Sri Lanka Flood",            "year": 2017, "region": "Southern Sri Lanka",         "color": "#14b8a6"},
@@ -35,6 +36,7 @@ ALL_EVENTS = {
 EVENT_BOUNDS = {
     "harvey":        [-96.0,  29.0, -94.5,  30.5],
     "pakistan":      [ 66.5,  25.5,  69.5,  28.0],
+    "dubai":         [ 54.8,  24.9,  56.2,  25.6],
     "myanmar2015":   [ 94.5,  15.5,  96.5,  17.5],
     "louisiana2016": [-91.5,  30.0, -90.0,  31.0],
     "srilanka2017":  [ 80.0,   6.0,  81.5,   7.5],
@@ -54,6 +56,7 @@ EVENT_BOUNDS = {
 EVENT_CENTERS = {
     "harvey":        [ 29.76, -95.37],
     "pakistan":      [ 27.0,   68.0 ],
+    "dubai":         [ 25.2,   55.3 ],
     "myanmar2015":   [ 16.5,   95.5 ],
     "louisiana2016": [ 30.5,  -90.75],
     "srilanka2017":  [  6.75,  80.75],
@@ -70,7 +73,7 @@ EVENT_CENTERS = {
 }
 
 EVENT_ZOOM = {
-    "harvey": 9, "pakistan": 8,
+    "harvey": 9, "pakistan": 8, "dubai": 10,
     "myanmar2015": 8, "louisiana2016": 9,
     "srilanka2017": 9, "mozambique2019": 9, "iran2019": 8,
     "china2020": 8, "sudan2020": 8,
@@ -82,6 +85,7 @@ EVENT_ZOOM = {
 EVENT_DATES = {
     "harvey":        {"before": ("2017-08-01","2017-08-22"), "flood": ("2017-08-26","2017-09-10")},
     "pakistan":      {"before": ("2022-06-01","2022-07-20"), "flood": ("2022-08-15","2022-09-25")},
+    "dubai":         {"before": ("2024-03-01","2024-04-14"), "flood": ("2024-04-16","2024-04-28")},
     "myanmar2015":   {"before": ("2015-06-01","2015-07-20"), "flood": ("2015-07-25","2015-08-20")},
     "louisiana2016": {"before": ("2016-07-01","2016-08-10"), "flood": ("2016-08-12","2016-08-25")},
     "srilanka2017":  {"before": ("2017-04-01","2017-05-15"), "flood": ("2017-05-25","2017-06-15")},

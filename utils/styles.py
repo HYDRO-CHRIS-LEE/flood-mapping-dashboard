@@ -94,10 +94,17 @@ def inject_css():
         background: var(--blue-light) !important;
         color: var(--blue) !important;
     }
-    /* baseweb select input text */
+    /* baseweb select input — white bg + dark text in main area */
+    div[data-baseweb="select"] {
+        background: #ffffff !important;
+        border-color: var(--border) !important;
+    }
     div[data-baseweb="select"] span,
     div[data-baseweb="select"] input {
         color: var(--text) !important;
+    }
+    div[data-baseweb="select"] > div {
+        background: #ffffff !important;
     }
     /* baseweb select dropdown container */
     div[data-baseweb="select"] [data-baseweb="popover"] {
@@ -134,6 +141,8 @@ def inject_css():
     [data-testid="stSidebar"] .stTextInput > label { color: #94a3b8 !important; }
     [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label,
     [data-testid="stSidebar"] .stCheckbox label { color: #cbd5e1 !important; }
+    [data-testid="stSidebar"] div[data-baseweb="select"],
+    [data-testid="stSidebar"] div[data-baseweb="select"] > div { background: var(--sb-card) !important; border-color: rgba(255,255,255,0.1) !important; }
     [data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] span,
     [data-testid="stSidebar"] .stMultiSelect div[data-baseweb="select"] span { color: #f1f5f9 !important; }
     [data-testid="stSidebar"] .stTextInput input { color: #f1f5f9 !important; }

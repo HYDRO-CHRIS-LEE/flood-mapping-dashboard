@@ -18,13 +18,12 @@ from utils.styles import COLORS
 import os
 import time
 
-HELD_OUT_EVENT = "dubai"
+HELD_OUT_EVENTS = ["dubai", "germany2021", "libya2023", "china2020"]
 LEADERBOARD_PATH = os.path.join(
     os.path.dirname(os.path.dirname(__file__)), "data", "leaderboard.json"
 )
 
 FEATURE_INFO = {
-    "SAR_VH":         ("📡", "SAR VH",       "⚠️ Labels were derived from SAR — using this feature is circular reasoning. Try without it!"),
     "NDWI":           ("💧", "NDWI",          "Optical water index — green / NIR ratio"),
     "MNDWI":          ("🏙️", "MNDWI",         "Modified water index — better in urban areas"),
     "elevation":      ("🏔️", "Elevation",     "Height above sea level (m)"),
@@ -32,10 +31,11 @@ FEATURE_INFO = {
     "permanent_water":("🌊", "Perm. Water",   "JRC permanent water flag"),
 }
 ALL_FEATURES = list(FEATURE_INFO.keys())
+# NOTE: SAR_VH removed — labels are SAR-derived, including it would be circular reasoning
 
 
-def event_based_split(df: pd.DataFrame, held_out_event: str):
-    test_mask = df["event"] == held_out_event
+def event_based_split(df: pd.DataFrame, held_out_events: list[str]):
+    test_mask = df["event"].isin(held_out_events)
     return df[~test_mask].copy(), df[test_mask].copy()
 
 
@@ -93,7 +93,7 @@ def apply_class_balance(df: pd.DataFrame, method: str,
 
 def train_rf(df: pd.DataFrame, features: list[str],
              n_trees: int, max_depth: int,
-             held_out_event: str,
+             held_out_events: list[str],
              min_samples_leaf: int = 1,
              max_features_str: str = "sqrt",
              use_class_weight: bool = False,
@@ -101,7 +101,7 @@ def train_rf(df: pd.DataFrame, features: list[str],
              scaling: str = "None",
              balance: str = "None",
              seed: int = 42):
-    train_df, test_df = event_based_split(df, held_out_event)
+    train_df, test_df = event_based_split(df, held_out_events)
 
     if len(train_df) == 0 or len(test_df) == 0:
         return None, None
@@ -145,8 +145,8 @@ def train_rf(df: pd.DataFrame, features: list[str],
         "f1":           f1_score(y_te, y_pred, zero_division=0),
         "n_train":      len(X_tr),
         "n_test":       len(X_te),
-        "train_events": [e for e in df["event"].unique() if e != held_out_event],
-        "test_event":   held_out_event,
+        "train_events": [e for e in df["event"].unique() if e not in held_out_events],
+        "test_events":  held_out_events,
         "cm":           cm.tolist(),
     }
     importance = dict(zip(features, clf.feature_importances_))
@@ -297,16 +297,19 @@ def render_module4(available_events: list[str]):
     </div>
     """, unsafe_allow_html=True)
 
-    held_out_label = ALL_EVENTS.get(HELD_OUT_EVENT, {}).get("label", HELD_OUT_EVENT)
-    held_out_year = ALL_EVENTS.get(HELD_OUT_EVENT, {}).get("year", "")
+    held_out_labels = [
+        f"{ALL_EVENTS.get(e, {}).get('label', e)} ({ALL_EVENTS.get(e, {}).get('year', '')})"
+        for e in HELD_OUT_EVENTS
+    ]
+    held_out_str = ", ".join(held_out_labels)
 
     st.markdown(f"""
     <div class="callout">
         <strong>From Observation to Prediction</strong> &nbsp;
         We combine data from multiple flood events to train an AI model.
         Features are <strong>normalized per-event</strong> so the model learns flood patterns,
-        not geography. All teams are evaluated on
-        <strong>{held_out_label} ({held_out_year})</strong> — a flood the model has never seen.
+        not geography. All teams are evaluated on <strong>4 held-out events</strong>
+        the model has never seen: {held_out_str}.
     </div>
     """, unsafe_allow_html=True)
 
@@ -335,13 +338,14 @@ def render_module4(available_events: list[str]):
         )
         st.caption(f"⚠️ Excluded events: {excl_str}")
 
-    if HELD_OUT_EVENT not in valid_df["event"].unique():
-        st.error(f"Held-out event '{HELD_OUT_EVENT}' has no valid data. Cannot proceed.")
+    available_held_out = [e for e in HELD_OUT_EVENTS if e in valid_df["event"].unique()]
+    if not available_held_out:
+        st.error("No held-out test events have data. Cannot proceed.")
         return
 
     df = normalize_by_event(valid_df)
 
-    train_events = [e for e in df["event"].unique() if e != HELD_OUT_EVENT]
+    train_events = [e for e in df["event"].unique() if e not in HELD_OUT_EVENTS]
     if len(train_events) == 0:
         st.error("No training events available after filtering.")
         return
@@ -370,8 +374,9 @@ def render_module4(available_events: list[str]):
             <div class="metric-value">{n_nonflood:,}</div>
         </div>
         <div class="metric-card indigo">
-            <div class="metric-label">Test Event</div>
-            <div class="metric-value" style="font-size:1.1rem">{held_out_label}</div>
+            <div class="metric-label">Test Events</div>
+            <div class="metric-value" style="font-size:1.1rem">{len(available_held_out)}</div>
+            <div class="metric-unit">held-out for evaluation</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -418,15 +423,6 @@ def render_module4(available_events: list[str]):
                                    help=desc, key=f"feat_{feat}"):
                         selected_features.append(feat)
 
-            if "SAR_VH" in selected_features:
-                st.markdown(
-                    '<div class="callout warn">'
-                    '<strong>⚠️ Circular reasoning warning</strong><br>'
-                    'Labels were generated from SAR thresholding. '
-                    'Including SAR_VH as a feature means the model is learning '
-                    'to reproduce the same threshold — try without it for a fair experiment!'
-                    '</div>', unsafe_allow_html=True)
-
             st.markdown("---")
             n_trees = st.slider("Number of trees", 10, 300, 100, 10)
             max_depth = st.slider("Max tree depth (0 = unlimited)", 0, 20, 5)
@@ -445,8 +441,8 @@ def render_module4(available_events: list[str]):
                                            help="Auto-weight when flood samples are rare")
 
             st.markdown("---")
-            st.markdown(f"**Test event:** {held_out_label} ({held_out_year})")
-            st.caption("Fixed for fair competition — all teams evaluated on the same event.")
+            st.markdown(f"**Test events ({len(available_held_out)}):** {held_out_str}")
+            st.caption("Fixed for fair competition — all teams evaluated on the same held-out events.")
 
         # Apply sample size + outlier removal to full dataset
         proc_df = apply_preprocessing(df, selected_features, sample_pct,
@@ -467,7 +463,7 @@ def render_module4(available_events: list[str]):
                 t0 = time.time()
                 metrics, importance = train_rf(
                     proc_df, selected_features, n_trees, max_depth,
-                    HELD_OUT_EVENT,
+                    available_held_out,
                     min_samples_leaf=min_leaf,
                     max_features_str=max_feat,
                     use_class_weight=use_class_wt,
@@ -549,13 +545,15 @@ def render_module4(available_events: list[str]):
             train_ev_str = ", ".join(
                 ALL_EVENTS[e]["label"] for e in m["train_events"] if e in ALL_EVENTS
             )
-            test_ev_label = ALL_EVENTS.get(m["test_event"], {}).get("label", m["test_event"])
+            test_ev_str = ", ".join(
+                ALL_EVENTS.get(e, {}).get("label", e) for e in m["test_events"]
+            )
             st.markdown(f"""
             <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;
                         padding:8px 12px;background:var(--bg3);border-radius:8px">
                 <b>Trained on:</b> {train_ev_str} ({m['n_train']} samples)
                 &nbsp;·&nbsp;
-                <b>Tested on:</b> {test_ev_label} ({m['n_test']} samples)
+                <b>Tested on:</b> {test_ev_str} ({m['n_test']} samples)
                 &nbsp;·&nbsp; {res['elapsed']:.1f}s
             </div>
             """, unsafe_allow_html=True)
@@ -640,7 +638,7 @@ def render_module4(available_events: list[str]):
             if st.button("📤 Submit to Leaderboard", use_container_width=True):
                 team = st.session_state.get("team_name", "Team A")
                 add_entry(
-                    LEADERBOARD_PATH, HELD_OUT_EVENT,
+                    LEADERBOARD_PATH, ",".join(available_held_out),
                     team=team, f1=m["f1"], accuracy=m["accuracy"],
                     precision=m["precision"], recall=m["recall"],
                     features=res["features"], n_trees=res["n_trees"],

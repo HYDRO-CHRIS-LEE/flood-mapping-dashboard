@@ -1,6 +1,6 @@
 """
 Data loading utilities for the flood mapping dashboard.
-Supports 13 flood events with Copernicus EMS ground truth.
+Supports 15 flood events (SAR-derived labels, SAR_VH excluded from training features).
 """
 
 import os
@@ -12,7 +12,7 @@ import streamlit as st
 
 DATA_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 
-# ── 13 flood events with Copernicus EMS ground truth ─────────────
+# ── 15 flood events ──────────────────────────────────────────────
 ALL_EVENTS = {
     "harvey":       {"label": "Hurricane Harvey",          "year": 2017, "region": "Houston, TX, USA",           "color": "#ef4444"},
     "pakistan":     {"label": "Pakistan Mega Flood",        "year": 2022, "region": "Sindh Province, Pakistan",   "color": "#06b6d4"},
@@ -21,6 +21,8 @@ ALL_EVENTS = {
     "srilanka2017": {"label": "Sri Lanka Flood",            "year": 2017, "region": "Southern Sri Lanka",         "color": "#14b8a6"},
     "mozambique2019":{"label":"Cyclone Idai",               "year": 2019, "region": "Beira, Mozambique",          "color": "#0ea5e9"},
     "iran2019":     {"label": "Iran Flood",                 "year": 2019, "region": "Khuzestan, Iran",            "color": "#d946ef"},
+    "china2020":    {"label": "Yangtze River Flood",        "year": 2020, "region": "Hubei / Poyang Lake, China", "color": "#f43f5e"},
+    "sudan2020":    {"label": "Sudan Flash Flood",          "year": 2020, "region": "Khartoum, Sudan",            "color": "#fb923c"},
     "germany2021":  {"label": "Ahr Valley Flood",           "year": 2021, "region": "Rhineland-Palatinate, Germany","color": "#a3e635"},
     "nigeria2022":  {"label": "Nigeria Flood",              "year": 2022, "region": "Anambra / Delta State, Nigeria","color": "#fb7185"},
     "libya2023":    {"label": "Libya Flood (Derna)",        "year": 2023, "region": "Derna, Libya",               "color": "#c084fc"},
@@ -38,6 +40,8 @@ EVENT_BOUNDS = {
     "srilanka2017":  [ 80.0,   6.0,  81.5,   7.5],
     "mozambique2019":[ 34.0,  -20.0, 35.5, -18.5],
     "iran2019":      [ 48.0,  31.0,  50.0,  33.0],
+    "china2020":     [115.0,  29.0, 117.5,  30.5],
+    "sudan2020":     [ 32.0,  15.0,  34.5,  16.5],
     "germany2021":   [  6.5,  50.0,   7.5,  50.8],
     "nigeria2022":   [  6.0,   5.0,   7.5,   6.5],
     "libya2023":     [ 22.0,  32.0,  23.5,  33.0],
@@ -55,6 +59,8 @@ EVENT_CENTERS = {
     "srilanka2017":  [  6.75,  80.75],
     "mozambique2019":[-19.25,  34.75],
     "iran2019":      [ 32.0,   49.0 ],
+    "china2020":     [ 29.75, 116.25],
+    "sudan2020":     [ 15.75,  33.25],
     "germany2021":   [ 50.4,    7.0 ],
     "nigeria2022":   [  5.75,   6.75],
     "libya2023":     [ 32.5,   22.75],
@@ -67,6 +73,7 @@ EVENT_ZOOM = {
     "harvey": 9, "pakistan": 8,
     "myanmar2015": 8, "louisiana2016": 9,
     "srilanka2017": 9, "mozambique2019": 9, "iran2019": 8,
+    "china2020": 8, "sudan2020": 8,
     "germany2021": 10, "nigeria2022": 9, "libya2023": 10,
     "somalia2023": 9, "brazil2024": 8, "valencia2024": 9,
 }
@@ -80,6 +87,8 @@ EVENT_DATES = {
     "srilanka2017":  {"before": ("2017-04-01","2017-05-15"), "flood": ("2017-05-25","2017-06-15")},
     "mozambique2019":{"before": ("2019-02-01","2019-03-10"), "flood": ("2019-03-14","2019-04-01")},
     "iran2019":      {"before": ("2019-02-01","2019-03-20"), "flood": ("2019-03-25","2019-04-20")},
+    "china2020":     {"before": ("2020-06-01","2020-06-30"), "flood": ("2020-07-05","2020-08-15")},
+    "sudan2020":     {"before": ("2020-07-01","2020-07-31"), "flood": ("2020-08-05","2020-09-01")},
     "germany2021":   {"before": ("2021-06-01","2021-07-12"), "flood": ("2021-07-14","2021-07-25")},
     "nigeria2022":   {"before": ("2022-08-01","2022-09-15"), "flood": ("2022-09-20","2022-10-20")},
     "libya2023":     {"before": ("2023-08-01","2023-09-09"), "flood": ("2023-09-11","2023-09-25")},

@@ -17,6 +17,7 @@ from utils.leaderboard import add_entry, get_sorted
 from utils.styles import COLORS
 import os
 import time
+import textwrap
 
 HELD_OUT_EVENTS = ["dubai", "germany2021", "libya2023", "china2020"]
 LEADERBOARD_PATH = os.path.join(
@@ -377,7 +378,7 @@ def render_module4(available_events: list[str]):
 
     # ── Hyperparameter guide ──────────────────────────────────────
     with st.container(border=True):
-        st.markdown("""
+        st.markdown(textwrap.dedent("""\
         <div class="hp-guide">
             <div class="hp-guide-title">📖 Hyperparameter Guide</div>
 
@@ -483,7 +484,7 @@ def render_module4(available_events: list[str]):
                 </div>
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        """), unsafe_allow_html=True)
 
     # ── Parameter panel ────────────────────────────────────────────
     col_l, col_r = st.columns([1, 1.5])

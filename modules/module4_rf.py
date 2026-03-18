@@ -375,13 +375,138 @@ def render_module4(available_events: list[str]):
     </div>
     """, unsafe_allow_html=True)
 
+    # ── Hyperparameter guide ──────────────────────────────────────
+    with st.container(border=True):
+        st.markdown("""
+        <div class="hp-guide">
+            <div class="hp-guide-title">📖 Hyperparameter Guide</div>
+
+            <div class="hp-section-label">Features — What data does the model see?</div>
+            <div class="hp-grid">
+                <div class="hp-item">
+                    <span class="hp-icon">💧</span>
+                    <span><span class="hp-name">NDWI</span> —
+                    <span class="hp-desc">Green/NIR ratio detecting water surfaces.</span>
+                    <span class="hp-tip">💡 Core feature — usually keep enabled</span></span>
+                </div>
+                <div class="hp-item">
+                    <span class="hp-icon">🏙️</span>
+                    <span><span class="hp-name">MNDWI</span> —
+                    <span class="hp-desc">Modified water index, better in urban areas.</span>
+                    <span class="hp-tip">💡 Pair with NDWI for urban floods</span></span>
+                </div>
+                <div class="hp-item">
+                    <span class="hp-icon">🏔️</span>
+                    <span><span class="hp-name">Elevation</span> —
+                    <span class="hp-desc">Height above sea level (m).</span>
+                    <span class="hp-tip">💡 Low elevation = higher flood risk</span></span>
+                </div>
+                <div class="hp-item">
+                    <span class="hp-icon">📐</span>
+                    <span><span class="hp-name">Slope</span> —
+                    <span class="hp-desc">Terrain steepness (°).</span>
+                    <span class="hp-tip">💡 Flat terrain floods more easily</span></span>
+                </div>
+                <div class="hp-item">
+                    <span class="hp-icon">🌊</span>
+                    <span><span class="hp-name">Permanent Water</span> —
+                    <span class="hp-desc">JRC flag for permanent water bodies.</span>
+                    <span class="hp-tip">💡 Helps distinguish flood from lakes</span></span>
+                </div>
+            </div>
+
+            <div class="hp-section-label">Preprocessing — How is the data prepared?</div>
+            <div class="hp-grid">
+                <div class="hp-item">
+                    <span class="hp-icon">⚖️</span>
+                    <span><span class="hp-name">Feature Scaling</span> —
+                    <span class="hp-desc">Normalizes value ranges across features.</span>
+                    <span class="hp-tip">💡 RF usually doesn't need this — experiment!</span></span>
+                </div>
+                <div class="hp-item">
+                    <span class="hp-icon">🔍</span>
+                    <span><span class="hp-name">Outlier Removal</span> —
+                    <span class="hp-desc">Removes extreme values that may be noise.</span>
+                    <span class="hp-tip">💡 IQR is gentler, Z-score is stricter</span></span>
+                </div>
+                <div class="hp-item">
+                    <span class="hp-icon">⚙️</span>
+                    <span><span class="hp-name">Class Balance</span> —
+                    <span class="hp-desc">Handles imbalance between flood/non-flood samples.</span>
+                    <span class="hp-tip">💡 Try when one class is much smaller</span></span>
+                </div>
+                <div class="hp-item">
+                    <span class="hp-icon">📊</span>
+                    <span><span class="hp-name">Sample Size</span> —
+                    <span class="hp-desc">Use a subset of data for faster experiments.</span>
+                    <span class="hp-tip">💡 Start small (30–50%), then use 100%</span></span>
+                </div>
+            </div>
+
+            <div class="hp-section-label">Model Parameters — How does the Random Forest work?</div>
+            <div class="hp-grid">
+                <div class="hp-item">
+                    <span class="hp-icon">🌲</span>
+                    <span><span class="hp-name">Number of Trees</span> —
+                    <span class="hp-desc">How many decision trees vote together.</span>
+                    <span class="hp-tip">💡 100–200 is a good range; more = slower</span></span>
+                </div>
+                <div class="hp-item">
+                    <span class="hp-icon">📏</span>
+                    <span><span class="hp-name">Max Tree Depth</span> —
+                    <span class="hp-desc">How deep each tree can grow (0 = unlimited).</span>
+                    <span class="hp-tip">💡 5–10 prevents overfitting</span></span>
+                </div>
+                <div class="hp-item">
+                    <span class="hp-icon">🍃</span>
+                    <span><span class="hp-name">Min Samples per Leaf</span> —
+                    <span class="hp-desc">Minimum data points in each leaf node.</span>
+                    <span class="hp-tip">💡 Larger = simpler model, less overfitting</span></span>
+                </div>
+                <div class="hp-item">
+                    <span class="hp-icon">🔀</span>
+                    <span><span class="hp-name">Max Features per Split</span> —
+                    <span class="hp-desc">How many features each split considers.</span>
+                    <span class="hp-tip">💡 "sqrt" is the standard default</span></span>
+                </div>
+                <div class="hp-item">
+                    <span class="hp-icon">🎲</span>
+                    <span><span class="hp-name">Bootstrap</span> —
+                    <span class="hp-desc">Each tree trains on a random subset of data.</span>
+                    <span class="hp-tip">💡 Usually keep ON — adds diversity</span></span>
+                </div>
+                <div class="hp-item">
+                    <span class="hp-icon">⚖️</span>
+                    <span><span class="hp-name">Class Weight</span> —
+                    <span class="hp-desc">Auto-adjusts for rare flood samples.</span>
+                    <span class="hp-tip">💡 Enable when flood samples are much fewer</span></span>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
     # ── Parameter panel ────────────────────────────────────────────
     col_l, col_r = st.columns([1, 1.5])
 
     with col_l:
-        # ── Data Preprocessing ────────────────────────────────────
+        # ── Step 1: Select Features ──────────────────────────────
         with st.container(border=True):
-            st.markdown('<div class="control-title">Data Preprocessing</div>',
+            st.markdown('<div class="control-title">Step 1 · Select Features</div>',
+                        unsafe_allow_html=True)
+            st.markdown("**Choose input features** (min 2)")
+            selected_features = []
+            fc = st.columns(2)
+            for i, feat in enumerate(ALL_FEATURES):
+                icon, short, desc = FEATURE_INFO[feat]
+                with fc[i % 2]:
+                    if st.checkbox(f"{icon} {short}",
+                                   value=(feat in ["NDWI", "elevation", "slope"]),
+                                   help=desc, key=f"feat_{feat}"):
+                        selected_features.append(feat)
+
+        # ── Step 2: Data Preprocessing ───────────────────────────
+        with st.container(border=True):
+            st.markdown('<div class="control-title">Step 2 · Data Preprocessing</div>',
                         unsafe_allow_html=True)
             pp_c1, pp_c2 = st.columns(2)
             with pp_c1:
@@ -402,22 +527,10 @@ def render_module4(available_events: list[str]):
                     "Sample Size (%)", 10, 100, 100, 10,
                     help="Use partial data — see how data volume affects performance")
 
+        # ── Step 3: Model Parameters ─────────────────────────────
         with st.container(border=True):
-            st.markdown('<div class="control-title">Model Parameters</div>',
+            st.markdown('<div class="control-title">Step 3 · Model Parameters</div>',
                         unsafe_allow_html=True)
-
-            st.markdown("**Select features** (min 2)")
-            selected_features = []
-            fc = st.columns(2)
-            for i, feat in enumerate(ALL_FEATURES):
-                icon, short, desc = FEATURE_INFO[feat]
-                with fc[i % 2]:
-                    if st.checkbox(f"{icon} {short}",
-                                   value=(feat in ["NDWI", "elevation", "slope"]),
-                                   help=desc, key=f"feat_{feat}"):
-                        selected_features.append(feat)
-
-            st.markdown("---")
             n_trees = st.slider("Number of trees", 10, 300, 100, 10)
             max_depth = st.slider("Max tree depth (0 = unlimited)", 0, 20, 5)
             min_leaf = st.slider("Min samples per leaf", 1, 20, 1,

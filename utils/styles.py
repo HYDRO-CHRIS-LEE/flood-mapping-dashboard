@@ -368,6 +368,33 @@ def inject_css():
     .chip-yellow { background: var(--yellow-light); color: var(--yellow) !important; }
     .chip-red    { background: var(--red-light);    color: var(--red) !important; }
 
+    /* ── Hyperparameter guide panel ────────────────────────── */
+    .hp-guide { padding: 2px 0; }
+    .hp-guide-title {
+        font-size: var(--fs-base) !important; font-weight: 600;
+        color: var(--text) !important; margin-bottom: 12px;
+    }
+    .hp-section-label {
+        font-size: var(--fs-xs) !important; font-weight: 600;
+        color: var(--text-muted) !important; text-transform: uppercase;
+        letter-spacing: 0.07em; margin: 14px 0 8px; padding-bottom: 4px;
+        border-bottom: 1px solid var(--border-light);
+    }
+    .hp-section-label:first-of-type { margin-top: 0; }
+    .hp-grid {
+        display: grid; grid-template-columns: 1fr 1fr;
+        gap: 6px 18px;
+    }
+    .hp-item {
+        display: flex; align-items: baseline; gap: 6px;
+        font-size: var(--fs-sm) !important; line-height: 1.5;
+        padding: 3px 0;
+    }
+    .hp-icon { flex-shrink: 0; width: 18px; text-align: center; }
+    .hp-name { font-weight: 600; color: var(--text) !important; white-space: nowrap; }
+    .hp-desc { color: var(--text-sub) !important; }
+    .hp-tip  { color: var(--blue) !important; font-size: var(--fs-xs) !important; }
+
     hr { border-color: var(--border) !important; }
     ::-webkit-scrollbar       { width: 4px; }
     ::-webkit-scrollbar-track { background: var(--bg3); }

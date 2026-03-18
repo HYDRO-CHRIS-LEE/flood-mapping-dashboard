@@ -239,8 +239,9 @@ def render_confusion_matrix(cm: list):
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
 
+@st.fragment(run_every=5)
 def render_leaderboard_from_json():
-    """Render leaderboard from JSON file, sorted by F1."""
+    """Render leaderboard from JSON file, sorted by F1. Auto-refreshes every 5s."""
     entries = get_sorted(LEADERBOARD_PATH)
     if not entries:
         st.markdown(

@@ -9,7 +9,7 @@ def test_single_feature_hint_is_highest_priority():
         n_trees=100,
     )
     assert len(hints) >= 1
-    assert "하나만" in hints[0]
+    assert "only one feature" in hints[0]
 
 
 def test_low_recall_hint():
@@ -27,7 +27,7 @@ def test_high_f1_congratulation():
         features=["SAR_VH", "NDWI", "elevation"],
         n_trees=100,
     )
-    assert any("훌륭" in h for h in hints)
+    assert any("Great" in h for h in hints)
 
 
 def test_max_two_hints():

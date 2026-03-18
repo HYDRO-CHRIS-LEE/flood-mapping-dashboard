@@ -158,26 +158,27 @@ def generate_hints(metrics: dict, features: list[str], n_trees: int) -> list[str
     rules = [
         (
             len(features) == 1,
-            "피처를 하나만 쓰고 있어요. 서로 다른 종류의 정보(레이더 + 지형 등)를 조합해보세요.",
+            "You're using only one feature. Try combining different types of information "
+            "(e.g. radar + terrain) for better results.",
         ),
         (
             metrics["recall"] < 0.6,
-            "Recall이 낮습니다 — 실제 홍수 지역을 많이 놓치고 있어요. "
-            "SAR_VH 피처가 빠져 있다면 추가해보세요.",
+            "Recall is low — the model is missing many actual flood areas. "
+            "Try adding SAR_VH if it's not selected.",
         ),
         (
             metrics["precision"] < 0.6,
-            "Precision이 낮습니다 — 홍수가 아닌 곳을 홍수로 잘못 예측하고 있어요. "
-            "elevation이나 slope를 추가하면 도움이 될 수 있어요.",
+            "Precision is low — the model is predicting flood in non-flood areas. "
+            "Try adding elevation or slope to help distinguish terrain.",
         ),
         (
             n_trees < 30 and metrics["f1"] < 0.7,
-            "트리 수가 적습니다. 50~100으로 늘려보세요.",
+            "The number of trees is low. Try increasing to 50–100.",
         ),
         (
             metrics["f1"] > 0.85,
-            "훌륭합니다! 피처 수를 줄여도 비슷한 성능이 나오는지 실험해보세요 — "
-            "적은 데이터로 같은 결과를 내는 것이 더 좋은 모델입니다.",
+            "Great job! Try reducing the number of features — achieving similar "
+            "performance with less data means a better model.",
         ),
     ]
     return [msg for cond, msg in rules if cond][:2]
@@ -261,12 +262,10 @@ def render_leaderboard_from_json():
         icon = icons[i] if i < 3 else f"#{i+1}"
         cls = cls_[i] if i < 3 else ""
         bw = int(e["f1"] / best * 100) if best > 0 else 0
-        feat_short = ", ".join(e.get("features", []))
         rows += (
             f'<div class="lb-row">'
             f'<div class="lb-rank {cls}">{icon}</div>'
             f'<div class="lb-team">{e["team"]}</div>'
-            f'<div class="lb-event">{feat_short}</div>'
             f'<div class="lb-bar-wrap"><div class="lb-bar-bg">'
             f'<div class="lb-bar-fill" style="width:{bw}%"></div>'
             f'</div></div>'

@@ -380,6 +380,29 @@ def render_module4(available_events: list[str]):
     col_l, col_r = st.columns([1, 1.5])
 
     with col_l:
+        # ── Data Preprocessing ────────────────────────────────────
+        with st.container(border=True):
+            st.markdown('<div class="control-title">Data Preprocessing</div>',
+                        unsafe_allow_html=True)
+            pp_c1, pp_c2 = st.columns(2)
+            with pp_c1:
+                scaling = st.selectbox(
+                    "Feature Scaling",
+                    ["None", "StandardScaler", "MinMaxScaler"],
+                    help="Normalize value ranges — RF usually doesn't need this, but experiment!")
+                outlier_method = st.selectbox(
+                    "Outlier Removal",
+                    ["None", "IQR method", "Z-score (>3σ)"],
+                    help="Remove extreme values — how does it affect accuracy?")
+            with pp_c2:
+                balance = st.selectbox(
+                    "Class Balance",
+                    ["None", "Oversample minority", "Undersample majority"],
+                    help="Handle flood/non-flood sample imbalance")
+                sample_pct = st.slider(
+                    "Sample Size (%)", 10, 100, 100, 10,
+                    help="Use partial data — see how data volume affects performance")
+
         with st.container(border=True):
             st.markdown('<div class="control-title">Model Parameters</div>',
                         unsafe_allow_html=True)
@@ -398,10 +421,29 @@ def render_module4(available_events: list[str]):
             st.markdown("---")
             n_trees = st.slider("Number of trees", 10, 300, 100, 10)
             max_depth = st.slider("Max tree depth (0 = unlimited)", 0, 20, 5)
+            min_leaf = st.slider("Min samples per leaf", 1, 20, 1,
+                                 help="Larger = less overfitting")
+            max_feat = st.selectbox(
+                "Max features per split",
+                ["sqrt", "log2", "all"],
+                help="Features considered per split — diversity vs accuracy")
+            bc1, bc2 = st.columns(2)
+            with bc1:
+                use_bootstrap = st.checkbox("Bootstrap", value=True,
+                                            help="Each tree trains on a random subset")
+            with bc2:
+                use_class_wt = st.checkbox("Class weight", value=False,
+                                           help="Auto-weight when flood samples are rare")
 
             st.markdown("---")
             st.markdown(f"**Test event:** {held_out_label} ({held_out_year})")
             st.caption("Fixed for fair competition — all teams evaluated on the same event.")
+
+        # Apply sample size + outlier removal to full dataset
+        proc_df = apply_preprocessing(df, selected_features, sample_pct,
+                                      outlier_method)
+        if len(proc_df) < 10:
+            st.warning("Too few samples after preprocessing.")
 
         disabled = len(selected_features) < 2
         if disabled:
@@ -415,7 +457,14 @@ def render_module4(available_events: list[str]):
             with st.spinner(f"Training Random Forest on {len(train_events)} events..."):
                 t0 = time.time()
                 metrics, importance = train_rf(
-                    df, selected_features, n_trees, max_depth, HELD_OUT_EVENT
+                    proc_df, selected_features, n_trees, max_depth,
+                    HELD_OUT_EVENT,
+                    min_samples_leaf=min_leaf,
+                    max_features_str=max_feat,
+                    use_class_weight=use_class_wt,
+                    bootstrap=use_bootstrap,
+                    scaling=scaling,
+                    balance=balance,
                 )
                 elapsed = time.time() - t0
 
@@ -426,6 +475,10 @@ def render_module4(available_events: list[str]):
                     "metrics": metrics, "importance": importance,
                     "features": selected_features, "n_trees": n_trees,
                     "max_depth": max_depth, "elapsed": elapsed,
+                    "min_leaf": min_leaf, "max_feat": max_feat,
+                    "bootstrap": use_bootstrap, "class_weight": use_class_wt,
+                    "scaling": scaling, "balance": balance,
+                    "sample_pct": sample_pct, "outlier": outlier_method,
                 }
                 st.session_state["last_result"] = result
 
@@ -438,10 +491,14 @@ def render_module4(available_events: list[str]):
                     "features": selected_features,
                     "n_trees": n_trees,
                     "max_depth": max_depth,
+                    "min_leaf": min_leaf,
+                    "max_feat": max_feat,
                     "f1": metrics["f1"],
                     "accuracy": metrics["accuracy"],
                     "precision": metrics["precision"],
                     "recall": metrics["recall"],
+                    "scaling": scaling,
+                    "balance": balance,
                     "timestamp": time.strftime("%H:%M:%S"),
                 })
                 if len(history) > 10:
@@ -493,6 +550,25 @@ def render_module4(available_events: list[str]):
                 &nbsp;·&nbsp; {res['elapsed']:.1f}s
             </div>
             """, unsafe_allow_html=True)
+
+            # ── Preprocessing summary ─────────────────────────────
+            pp_parts = []
+            if res.get("scaling", "None") != "None":
+                pp_parts.append(res["scaling"])
+            if res.get("balance", "None") != "None":
+                pp_parts.append(res["balance"])
+            if res.get("outlier", "None") != "None":
+                pp_parts.append(res["outlier"])
+            if res.get("sample_pct", 100) < 100:
+                pp_parts.append(f"{res['sample_pct']}% sample")
+            if pp_parts:
+                pp_str = " · ".join(pp_parts)
+                st.markdown(f"""
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;
+                            padding:6px 12px;background:var(--bg3);border-radius:8px">
+                    <b>Preprocessing:</b> {pp_str}
+                </div>
+                """, unsafe_allow_html=True)
 
             # ── Hints ──────────────────────────────────────────────
             hints = generate_hints(m, res["features"], res["n_trees"])

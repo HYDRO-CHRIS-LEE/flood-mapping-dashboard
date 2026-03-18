@@ -164,7 +164,7 @@ def generate_hints(metrics: dict, features: list[str], n_trees: int) -> list[str
         (
             metrics["recall"] < 0.6,
             "Recall is low — the model is missing many actual flood areas. "
-            "Try adding SAR_VH if it's not selected.",
+            "Try adding more features like NDWI or MNDWI to capture water signals.",
         ),
         (
             metrics["precision"] < 0.6,

@@ -11,13 +11,18 @@ except ImportError:
 
 from . import rendering_compat as rendering
 
-try:
-    import pyglet
-    from pyglet.gl import *
-    import pyglet.window.key as key
-except ImportError:
-    pyglet = None
-    key = None
+_HEADLESS = os.environ.get("SDL_VIDEODRIVER") == "dummy"
+
+pyglet = None
+key = None
+if not _HEADLESS:
+    try:
+        import pyglet
+        from pyglet.gl import *
+        import pyglet.window.key as key
+    except (ImportError, Exception):
+        pyglet = None
+        key = None
 
 from . import resources
 from . import player

@@ -6,9 +6,12 @@ a state_dict, submit to one of five progressive stages, and compete in
 admin-triggered official races rendered via an HTML Canvas replay.
 """
 
+import os
+# Must be set before any flappy_bird env import (pyglet/OpenGL)
+os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+
 import io
 import json
-import os
 import sys
 import time
 import uuid

@@ -152,8 +152,17 @@ def inject_css():
         padding: 8px 12px !important;
         text-align: left !important;
         width: 100% !important;
+        display: flex !important;
         justify-content: flex-start !important;
+        align-items: center !important;
         transition: all 0.15s !important;
+    }
+    [data-testid="stSidebar"] .stButton > button > div,
+    [data-testid="stSidebar"] .stButton > button > p,
+    [data-testid="stSidebar"] .stButton > button > span,
+    [data-testid="stSidebar"] .stButton > button * {
+        text-align: left !important;
+        justify-content: flex-start !important;
     }
     [data-testid="stSidebar"] .stButton > button:hover {
         background: var(--sb-card) !important;

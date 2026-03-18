@@ -94,6 +94,11 @@ def inject_css():
     [data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] span,
     [data-testid="stSidebar"] .stMultiSelect div[data-baseweb="select"] span { color: #f1f5f9 !important; }
     [data-testid="stSidebar"] .stTextInput input { color: #f1f5f9 !important; }
+    /* Sidebar dropdown options — light text on dark background */
+    [data-testid="stSidebar"] ul[role="listbox"] { background: #1e2533 !important; }
+    [data-testid="stSidebar"] ul[role="listbox"] li { color: #f1f5f9 !important; }
+    [data-testid="stSidebar"] ul[role="listbox"] li:hover { background: #2d3748 !important; }
+    [data-testid="stSidebar"] ul[role="listbox"] li[aria-selected="true"] { background: #2563eb !important; }
 
     .sidebar-top {
         padding: 18px 14px 14px;
@@ -134,6 +139,9 @@ def inject_css():
     [data-testid="stSidebar"] .stMarkdown { text-align: left !important; }
 
     /* ── Sidebar nav buttons ─────────────────────────────────── */
+    [data-testid="stSidebar"] .stButton {
+        text-align: left !important;
+    }
     [data-testid="stSidebar"] .stButton > button {
         background: transparent !important;
         color: var(--sb-text) !important;

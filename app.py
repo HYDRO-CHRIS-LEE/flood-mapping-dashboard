@@ -122,42 +122,27 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.caption("📱 Scan the QR code on screen to open on your phone.")
 
 
 # ── Main header ───────────────────────────────────────────────────
-logo_small = (f'<img src="{LOGO_B64}" class="header-logo">'
-              if LOGO_B64 else "🌊 ")
-
 page_info = PAGES[active]
-section_label = ("2. Flood Event Detection" if page_info["section"] == 1
-                 else "3. AI Flood Classifier")
 
-col_title, col_badge = st.columns([3, 1])
-with col_title:
+if active != "classifier":
     st.markdown(f"""
     <div class="page-header">
-        <div>
-            <div class="section-label-badge">{section_label}</div>
-            <div class="page-title" style="display:flex;align-items:center">
-                {logo_small}AI Flood Inundation Mapping
-            </div>
-            <div class="page-sub">
-                {page_info['icon']} &nbsp;<strong>{page_info['label']}</strong>
-                &nbsp;·&nbsp; UCI CHRS EarthAI Program
-            </div>
+        <div class="page-title">{page_info['icon']}  {page_info['label']}</div>
+        <div class="page-sub">
+            <strong>{ev['label']}</strong> ({ev['year']})
+            &nbsp;·&nbsp; 📍 {ev['region']}
         </div>
     </div>
     """, unsafe_allow_html=True)
-
-with col_badge:
-    if active != "classifier":
-        st.markdown(f"""
-        <div style="text-align:right;padding-top:6px">
-            <span class="chip chip-blue">{ev['label']}</span><br>
-            <span style="font-size:var(--fs-xs);color:var(--text-sub)">{ev['region']} · {ev['year']}</span>
-        </div>
-        """, unsafe_allow_html=True)
+else:
+    st.markdown(f"""
+    <div class="page-header">
+        <div class="page-title">{page_info['icon']}  {page_info['label']}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
 st.markdown('<hr style="margin:0 0 20px 0">', unsafe_allow_html=True)
 

@@ -541,7 +541,7 @@ def _render_replay(replay_data: dict):
         "/*__REPLAY_DATA__*/ null",
         replay_json,
     )
-    components.html(html_content, height=500)
+    components.html(html_content, height=450, scrolling=False)
 
 
 # ══════════════════════════════════════════════════════════════════

@@ -21,12 +21,15 @@
 
   #container {
     position: relative;
-    width: 800px;
-    height: 480px;
+    width: 100%;
+    max-width: 100%;
+    aspect-ratio: 5 / 3;
   }
 
   canvas {
     display: block;
+    width: 100%;
+    height: 100%;
     border-radius: 8px;
   }
 
@@ -118,13 +121,25 @@
     ctx0.fillStyle = '#64748b';
     ctx0.font = '16px Inter, sans-serif';
     ctx0.textAlign = 'center';
-    ctx0.fillText('No replay data loaded.', 400, 240);
+    ctx0.fillText('No replay data loaded.', canvas.width / 2, canvas.height / 2);
     return;
   }
 
   // ---------------------------------------------------------------------------
   // Constants derived from replay
   // ---------------------------------------------------------------------------
+  var canvas = document.getElementById('game');
+  var container = document.getElementById('container');
+  function resizeCanvas() {
+    var w = container.clientWidth;
+    var h = container.clientHeight || Math.round(w * 3 / 5);
+    canvas.width = w;
+    canvas.height = h;
+    CANVAS_W = w;
+    CANVAS_H = h;
+    SCALE_X = CANVAS_W / WORLD_W;
+    SCALE_Y = CANVAS_H / WORLD_H;
+  }
   var CANVAS_W = 800;
   var CANVAS_H = 480;
   var WORLD_W = REPLAY.world_width || 420;
@@ -136,6 +151,8 @@
 
   var SCALE_X = CANVAS_W / WORLD_W;
   var SCALE_Y = CANVAS_H / WORLD_H;
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
 
   var TEAM_COLORS = [
     '#2563eb','#ef4444','#16a34a','#d97706','#8b5cf6',

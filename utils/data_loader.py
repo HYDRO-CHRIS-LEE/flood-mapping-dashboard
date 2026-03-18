@@ -137,7 +137,10 @@ def load_csv(event: str, name: str):
     path = os.path.join(DATA_ROOT, event, f"{name}.csv")
     if not os.path.exists(path):
         return None
-    return pd.read_csv(path)
+    try:
+        return pd.read_csv(path)
+    except pd.errors.EmptyDataError:
+        return None
 
 
 def load_all_rf_samples(available_events: list[str]) -> pd.DataFrame | None:

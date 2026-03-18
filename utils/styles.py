@@ -406,6 +406,19 @@ def inject_css():
     .hp-desc { color: var(--text-sub) !important; }
     .hp-tip  { color: var(--blue) !important; font-size: var(--fs-xs) !important; }
 
+    /* ── Flappy Bird stage badges ──────────────────────────── */
+    .stage-row { display: flex; gap: 8px; margin: 14px 0; flex-wrap: wrap; }
+    .stage-badge {
+        padding: 8px 14px; border-radius: var(--radius);
+        font-size: var(--fs-sm) !important; font-weight: 500;
+        border: 1px solid var(--border); cursor: default;
+        display: flex; align-items: center; gap: 6px;
+    }
+    .stage-badge.locked { background: var(--bg3); color: var(--text-muted) !important; opacity: 0.6; }
+    .stage-badge.available { background: var(--blue-light); color: var(--blue) !important; border-color: var(--blue); }
+    .stage-badge.passed { background: var(--green-light); color: var(--green) !important; border-color: var(--green); }
+    .stage-badge.active { background: var(--yellow-light); color: var(--yellow) !important; border-color: var(--yellow); }
+
     hr { border-color: var(--border) !important; }
     ::-webkit-scrollbar       { width: 4px; }
     ::-webkit-scrollbar-track { background: var(--bg3); }

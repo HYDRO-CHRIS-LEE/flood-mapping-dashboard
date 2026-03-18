@@ -706,7 +706,7 @@ def render_module4(available_events: list[str]):
             if i < len(reversed_history) - 1:
                 prev = reversed_history[i + 1]
                 delta = run["f1"] - prev["f1"]
-                delta_str = f"{delta*100:+.1f}%"
+                delta_str = f"{delta*100:+.1f}%p"
                 delta_color = COLORS["green"] if delta > 0 else COLORS["red"] if delta < 0 else COLORS["text_muted"]
                 vs_prev = f'<span style="color:{delta_color};font-weight:600">{delta_str}</span>'
             else:

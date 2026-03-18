@@ -61,18 +61,48 @@ def inject_css():
         color: var(--text) !important;
     }
 
-    /* ── Global dropdown / popover fix ──────────────────────── */
-    /* Streamlit baseweb dropdowns, listboxes, popovers */
-    ul[role="listbox"] { background: #ffffff !important; border: 1px solid var(--border) !important; }
-    ul[role="listbox"] li { color: var(--text) !important; }
-    ul[role="listbox"] li:hover { background: var(--bg3) !important; }
-    ul[role="listbox"] li[aria-selected="true"] { background: var(--blue-light) !important; color: var(--blue) !important; }
-    div[data-baseweb="popover"] { background: #ffffff !important; border: 1px solid var(--border) !important; }
-    div[data-baseweb="popover"] li { color: var(--text) !important; }
-    div[data-baseweb="popover"] li:hover { background: var(--bg3) !important; }
-    div[data-baseweb="menu"] { background: #ffffff !important; }
-    div[data-baseweb="menu"] li { color: var(--text) !important; }
-    div[data-baseweb="menu"] li:hover { background: var(--bg3) !important; }
+    /* ── Global dropdown / popover / overlay fix ─────────────── */
+    /* All baseweb overlays: selectbox, multiselect, popover, menu, tooltip */
+    ul[role="listbox"],
+    div[data-baseweb="popover"],
+    div[data-baseweb="menu"],
+    div[data-baseweb="select"] ul,
+    div[data-baseweb="popover"] > div,
+    [data-baseweb="popover"] [data-baseweb="menu"],
+    [data-baseweb="select-dropdown"],
+    [role="listbox"] {
+        background: #ffffff !important;
+        border: 1px solid var(--border) !important;
+    }
+    ul[role="listbox"] li,
+    div[data-baseweb="popover"] li,
+    div[data-baseweb="menu"] li,
+    div[data-baseweb="popover"] div[role="option"],
+    [role="option"] {
+        color: var(--text) !important;
+        background: #ffffff !important;
+    }
+    ul[role="listbox"] li:hover,
+    div[data-baseweb="popover"] li:hover,
+    div[data-baseweb="menu"] li:hover,
+    div[data-baseweb="popover"] div[role="option"]:hover,
+    [role="option"]:hover {
+        background: var(--bg3) !important;
+    }
+    ul[role="listbox"] li[aria-selected="true"],
+    [role="option"][aria-selected="true"] {
+        background: var(--blue-light) !important;
+        color: var(--blue) !important;
+    }
+    /* baseweb select input text */
+    div[data-baseweb="select"] span,
+    div[data-baseweb="select"] input {
+        color: var(--text) !important;
+    }
+    /* baseweb select dropdown container */
+    div[data-baseweb="select"] [data-baseweb="popover"] {
+        background: #ffffff !important;
+    }
 
     /* ── Sidebar ─────────────────────────────────────────────── */
     [data-testid="stSidebar"] {
@@ -110,16 +140,20 @@ def inject_css():
     /* Sidebar dropdown options — light text on dark background (overrides global) */
     [data-testid="stSidebar"] ul[role="listbox"],
     [data-testid="stSidebar"] div[data-baseweb="popover"],
-    [data-testid="stSidebar"] div[data-baseweb="menu"] { background: #1e2533 !important; border-color: rgba(255,255,255,0.1) !important; }
+    [data-testid="stSidebar"] div[data-baseweb="popover"] > div,
+    [data-testid="stSidebar"] div[data-baseweb="menu"],
+    [data-testid="stSidebar"] [role="listbox"],
+    [data-testid="stSidebar"] [data-baseweb="select-dropdown"] { background: #1e2533 !important; border-color: rgba(255,255,255,0.1) !important; }
     [data-testid="stSidebar"] ul[role="listbox"] li,
     [data-testid="stSidebar"] div[data-baseweb="popover"] li,
-    [data-testid="stSidebar"] div[data-baseweb="menu"] li { color: #f1f5f9 !important; }
+    [data-testid="stSidebar"] div[data-baseweb="menu"] li,
+    [data-testid="stSidebar"] [role="option"] { color: #f1f5f9 !important; background: #1e2533 !important; }
     [data-testid="stSidebar"] ul[role="listbox"] li:hover,
     [data-testid="stSidebar"] div[data-baseweb="popover"] li:hover,
-    [data-testid="stSidebar"] div[data-baseweb="menu"] li:hover { background: #2d3748 !important; }
+    [data-testid="stSidebar"] div[data-baseweb="menu"] li:hover,
+    [data-testid="stSidebar"] [role="option"]:hover { background: #2d3748 !important; }
     [data-testid="stSidebar"] ul[role="listbox"] li[aria-selected="true"],
-    [data-testid="stSidebar"] div[data-baseweb="popover"] li[aria-selected="true"],
-    [data-testid="stSidebar"] div[data-baseweb="menu"] li[aria-selected="true"] { background: #2563eb !important; }
+    [data-testid="stSidebar"] [role="option"][aria-selected="true"] { background: #2563eb !important; }
 
     .sidebar-top {
         padding: 18px 14px 14px;

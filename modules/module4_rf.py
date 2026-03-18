@@ -93,18 +93,45 @@ def apply_class_balance(df: pd.DataFrame, method: str,
 
 def train_rf(df: pd.DataFrame, features: list[str],
              n_trees: int, max_depth: int,
-             held_out_event: str, seed: int = 42):
+             held_out_event: str,
+             min_samples_leaf: int = 1,
+             max_features_str: str = "sqrt",
+             use_class_weight: bool = False,
+             bootstrap: bool = True,
+             scaling: str = "None",
+             balance: str = "None",
+             seed: int = 42):
     train_df, test_df = event_based_split(df, held_out_event)
 
     if len(train_df) == 0 or len(test_df) == 0:
         return None, None
 
+    # Class balance (training set only)
+    train_df = apply_class_balance(train_df, balance, seed)
+
     X_tr = train_df[features].values; y_tr = train_df["label"].values
     X_te = test_df[features].values;  y_te = test_df["label"].values
+
+    # Feature scaling (fit on train, transform both)
+    scaler = None
+    if scaling == "StandardScaler":
+        scaler = StandardScaler()
+    elif scaling == "MinMaxScaler":
+        scaler = MinMaxScaler()
+    if scaler is not None:
+        X_tr = scaler.fit_transform(X_tr)
+        X_te = scaler.transform(X_te)
+
+    # Map max_features string to sklearn param
+    max_feat = None if max_features_str == "all" else max_features_str
 
     clf = RandomForestClassifier(
         n_estimators=n_trees,
         max_depth=max_depth if max_depth > 0 else None,
+        min_samples_leaf=min_samples_leaf,
+        max_features=max_feat,
+        class_weight="balanced" if use_class_weight else None,
+        bootstrap=bootstrap,
         random_state=seed, n_jobs=-1,
     )
     clf.fit(X_tr, y_tr)

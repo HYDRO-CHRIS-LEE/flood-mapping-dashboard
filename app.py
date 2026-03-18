@@ -16,6 +16,7 @@ st.set_page_config(
 from modules.module1_sar     import render_module1
 from modules.module2_optical import render_module2
 from modules.module4_rf      import render_module4
+from modules.module5_flappy  import render_module5
 from modules.module6_gpm     import render_module6
 from utils.styles            import inject_css
 from utils.data_loader       import get_available_events, ALL_EVENTS
@@ -39,6 +40,7 @@ PAGES = {
     "optical":   {"label": "Optical Before / After", "icon": "🛰️", "section": 1},
     "sar":       {"label": "SAR Detection",          "icon": "📡", "section": 1},
     "classifier":{"label": "AI Flood Classifier",    "icon": "🧠", "section": 2},
+    "flappybird":{"label": "Flappy Bird Competition","icon": "🐦", "section": 3},
 }
 if "active_page" not in st.session_state:
     st.session_state.active_page = "rainfall"
@@ -123,11 +125,23 @@ with st.sidebar:
 
     st.markdown("---")
 
+    # ── 4. Flappy Bird Competition nav ────────────────────────────
+    st.markdown('<div class="sidebar-section-label">4. Flappy Bird Competition</div>',
+                unsafe_allow_html=True)
+
+    p = PAGES["flappybird"]
+    if st.button(f"{p['icon']}  {p['label']}", key="nav_flappy",
+                 use_container_width=True):
+        st.session_state.active_page = "flappybird"
+        st.rerun()
+
+    st.markdown("---")
+
 
 # ── Main header ───────────────────────────────────────────────────
 page_info = PAGES[active]
 
-if active != "classifier":
+if active not in ("classifier", "flappybird"):
     st.markdown(f"""
     <div class="page-header">
         <div class="page-title">{page_info['icon']}  {page_info['label']}</div>
@@ -155,3 +169,5 @@ elif active == "sar":
     render_module1(selected_event)
 elif active == "classifier":
     render_module4(available)
+elif active == "flappybird":
+    render_module5()

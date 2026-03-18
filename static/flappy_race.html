@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flappy Race Replay</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0e1117;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+
+  #container {
+    position: relative;
+    width: 800px;
+    height: 480px;
+  }
+
+  canvas {
+    display: block;
+    border-radius: 8px;
+  }
+
+  #overlay {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(14, 17, 23, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: #e2e8f0;
+    font-size: 12px;
+    line-height: 1.7;
+    pointer-events: none;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+
+  #overlay .label {
+    color: #64748b;
+    font-weight: 500;
+  }
+
+  #overlay .value {
+    color: #f1f5f9;
+    font-weight: 600;
+  }
+
+  #controls {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    display: flex;
+    gap: 8px;
+  }
+
+  #controls button {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    background: rgba(14, 17, 23, 0.85);
+    color: #e2e8f0;
+    cursor: pointer;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  #controls button:hover {
+    background: rgba(30, 37, 51, 0.95);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  #controls button:active {
+    background: rgba(40, 50, 70, 0.95);
+  }
+</style>
+</head>
+<body>
+<div id="container">
+  <canvas id="game" width="800" height="480"></canvas>
+  <div id="overlay">
+    <div><span class="label">Stage:</span> <span class="value" id="info-stage">--</span> &nbsp; <span class="label">Gap:</span> <span class="value" id="info-gap">--</span></div>
+    <div><span class="label">Episode:</span> <span class="value" id="info-episode">--</span></div>
+    <div><span class="label">Frame:</span> <span class="value" id="info-frame">--</span></div>
+    <div><span class="label">Alive:</span> <span class="value" id="info-alive">--</span></div>
+  </div>
+  <div id="controls">
+    <button id="btn-play">Pause</button>
+    <button id="btn-next">Next Episode</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  "use strict";
+
+  // ---------------------------------------------------------------------------
+  // Replay data placeholder -- Python injects JSON here
+  // ---------------------------------------------------------------------------
+  var REPLAY = /*__REPLAY_DATA__*/ null;
+
+  if (!REPLAY || !REPLAY.episodes || REPLAY.episodes.length === 0) {
+    var ctx0 = document.getElementById('game').getContext('2d');
+    ctx0.fillStyle = '#64748b';
+    ctx0.font = '16px Inter, sans-serif';
+    ctx0.textAlign = 'center';
+    ctx0.fillText('No replay data loaded.', 400, 240);
+    return;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Constants derived from replay
+  // ---------------------------------------------------------------------------
+  var CANVAS_W = 800;
+  var CANVAS_H = 480;
+  var WORLD_W = REPLAY.world_width || 420;
+  var WORLD_H = REPLAY.world_height || 580;
+  var GROUND_H = REPLAY.ground_height || 60;
+  var GAP_SIZE = REPLAY.gap_size || 140;
+  var STAGE_ID = REPLAY.stage_id != null ? REPLAY.stage_id : '?';
+  var PIPE_WIDTH = 52;
+
+  var SCALE_X = CANVAS_W / WORLD_W;
+  var SCALE_Y = CANVAS_H / WORLD_H;
+
+  var TEAM_COLORS = [
+    '#2563eb','#ef4444','#16a34a','#d97706','#8b5cf6',
+    '#06b6d4','#f43f5e','#fb923c','#a3e635','#c084fc'
+  ];
+
+  // ---------------------------------------------------------------------------
+  // Canvas setup
+  // ---------------------------------------------------------------------------
+  var canvas = document.getElementById('game');
+  var ctx = canvas.getContext('2d');
+
+  // ---------------------------------------------------------------------------
+  // State
+  // ---------------------------------------------------------------------------
+  var episodeIdx = 0;
+  var frameIdx = 0;
+  var playing = true;
+  var frameTick = 0;
+  var FRAME_INTERVAL = 2; // render every N animation frames (~30fps at 60Hz)
+
+  // Build a stable team->color mapping from the first frame of the first episode
+  var teamColorMap = {};
+  (function buildColorMap() {
+    for (var ei = 0; ei < REPLAY.episodes.length; ei++) {
+      var ep = REPLAY.episodes[ei];
+      if (ep.frames && ep.frames.length > 0) {
+        var birds = ep.frames[0].birds || [];
+        for (var bi = 0; bi < birds.length; bi++) {
+          var name = birds[bi].team_name;
+          if (!(name in teamColorMap)) {
+            teamColorMap[name] = TEAM_COLORS[Object.keys(teamColorMap).length % TEAM_COLORS.length];
+          }
+        }
+      }
+    }
+  })();
+
+  // ---------------------------------------------------------------------------
+  // Info overlay helpers
+  // ---------------------------------------------------------------------------
+  var elStage   = document.getElementById('info-stage');
+  var elGap     = document.getElementById('info-gap');
+  var elEpisode = document.getElementById('info-episode');
+  var elFrame   = document.getElementById('info-frame');
+  var elAlive   = document.getElementById('info-alive');
+
+  function updateOverlay(frame) {
+    elStage.textContent   = STAGE_ID;
+    elGap.textContent     = GAP_SIZE + 'px';
+    elEpisode.textContent = (episodeIdx + 1) + ' / ' + REPLAY.episodes.length;
+    elFrame.textContent   = frameIdx + ' / ' + (currentEpisode().frames.length - 1);
+    var alive = 0;
+    var birds = frame.birds || [];
+    for (var i = 0; i < birds.length; i++) { if (birds[i].alive) alive++; }
+    elAlive.textContent = alive + ' / ' + birds.length;
+  }
+
+  function currentEpisode() { return REPLAY.episodes[episodeIdx]; }
+
+  // ---------------------------------------------------------------------------
+  // Drawing
+  // ---------------------------------------------------------------------------
+
+  function drawBackground() {
+    var grd = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
+    grd.addColorStop(0, '#0e1117');
+    grd.addColorStop(1, '#1a1f2e');
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  }
+
+  function drawGround() {
+    var gy = CANVAS_H - (GROUND_H * SCALE_Y);
+    ctx.fillStyle = '#1e2533';
+    ctx.fillRect(0, gy, CANVAS_W, CANVAS_H - gy);
+    // subtle top edge
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, gy);
+    ctx.lineTo(CANVAS_W, gy);
+    ctx.stroke();
+  }
+
+  function drawPipe(px, gapY, gapSize) {
+    var sx = px * SCALE_X;
+    var sw = PIPE_WIDTH * SCALE_X;
+    var sgapY = gapY * SCALE_Y;
+    var sgapSize = gapSize * SCALE_Y;
+    var capH = 8;
+
+    var topPipeBottom = sgapY - sgapSize / 2;
+    var bottomPipeTop = sgapY + sgapSize / 2;
+
+    // Top pipe body
+    ctx.fillStyle = '#22c55e';
+    ctx.fillRect(sx, 0, sw, topPipeBottom);
+    // Top pipe cap
+    ctx.fillStyle = '#15803d';
+    ctx.fillRect(sx - 3, topPipeBottom - capH, sw + 6, capH);
+
+    // Bottom pipe body
+    ctx.fillStyle = '#22c55e';
+    ctx.fillRect(sx, bottomPipeTop, sw, CANVAS_H - bottomPipeTop);
+    // Bottom pipe cap
+    ctx.fillStyle = '#15803d';
+    ctx.fillRect(sx - 3, bottomPipeTop, sw + 6, capH);
+  }
+
+  function drawBird(bird, isLastSurvivor, totalTeams) {
+    var bx = 60 * SCALE_X; // birds are at a fixed x in Flappy Bird
+    var by = bird.y * SCALE_Y;
+    var radius = 12;
+    var color = teamColorMap[bird.team_name] || '#ffffff';
+    var alpha = bird.alive ? 1.0 : 0.4;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    // Body
+    ctx.beginPath();
+    ctx.arc(bx, by, radius, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Eye (white circle + black pupil)
+    ctx.beginPath();
+    ctx.arc(bx + 4, by - 3, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(bx + 5, by - 3, 2, 0, Math.PI * 2);
+    ctx.fillStyle = '#0f172a';
+    ctx.fill();
+
+    // Dead marker
+    if (!bird.alive) {
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      var xOff = 10;
+      ctx.beginPath();
+      ctx.moveTo(bx - xOff, by - xOff);
+      ctx.lineTo(bx + xOff, by + xOff);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(bx + xOff, by - xOff);
+      ctx.lineTo(bx - xOff, by + xOff);
+      ctx.stroke();
+    }
+
+    // Team name label above
+    ctx.font = '600 10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = color;
+    ctx.fillText(bird.team_name, bx, by - radius - 14);
+
+    // Crown for last survivor in multi-team race
+    if (bird.alive && isLastSurvivor && totalTeams > 1) {
+      ctx.font = '14px sans-serif';
+      ctx.fillText('\uD83D\uDC51', bx, by - radius - 26);
+    }
+
+    // Score below
+    ctx.font = '500 10px Inter, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillText('Score: ' + bird.score, bx, by + radius + 14);
+
+    ctx.restore();
+  }
+
+  function renderFrame() {
+    var ep = currentEpisode();
+    if (!ep || !ep.frames || ep.frames.length === 0) return;
+
+    var frame = ep.frames[frameIdx];
+    if (!frame) return;
+
+    // Clear
+    drawBackground();
+
+    // Pipes
+    var pipes = frame.pipes || [];
+    for (var pi = 0; pi < pipes.length; pi++) {
+      var p = pipes[pi];
+      drawPipe(p.x, p.gap_y, p.gap_size);
+    }
+
+    // Ground
+    drawGround();
+
+    // Determine alive count for crown logic
+    var birds = frame.birds || [];
+    var aliveCount = 0;
+    var totalTeams = birds.length;
+    for (var ai = 0; ai < birds.length; ai++) {
+      if (birds[ai].alive) aliveCount++;
+    }
+    var isLastSurvivor = (aliveCount === 1 && totalTeams > 1);
+
+    // Birds — spread them horizontally so they don't overlap
+    var birdSpacing = (totalTeams > 1) ? Math.min(30, 120 / (totalTeams - 1)) : 0;
+    var birdBaseX = 60;
+
+    for (var bi = 0; bi < birds.length; bi++) {
+      var b = birds[bi];
+      // Compute individual x offset for this bird
+      var offsetX = (bi - (totalTeams - 1) / 2) * birdSpacing;
+      drawBirdAtX(b, birdBaseX + offsetX, b.alive && isLastSurvivor, totalTeams);
+    }
+
+    // Overlay
+    updateOverlay(frame);
+  }
+
+  function drawBirdAtX(bird, worldX, showCrown, totalTeams) {
+    var bx = worldX * SCALE_X;
+    var by = bird.y * SCALE_Y;
+    var radius = 12;
+    var color = teamColorMap[bird.team_name] || '#ffffff';
+    var alpha = bird.alive ? 1.0 : 0.4;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    // Body
+    ctx.beginPath();
+    ctx.arc(bx, by, radius, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Eye
+    ctx.beginPath();
+    ctx.arc(bx + 4, by - 3, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(bx + 5, by - 3, 2, 0, Math.PI * 2);
+    ctx.fillStyle = '#0f172a';
+    ctx.fill();
+
+    // Dead marker
+    if (!bird.alive) {
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      var xOff = 10;
+      ctx.beginPath();
+      ctx.moveTo(bx - xOff, by - xOff);
+      ctx.lineTo(bx + xOff, by + xOff);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(bx + xOff, by - xOff);
+      ctx.lineTo(bx - xOff, by + xOff);
+      ctx.stroke();
+    }
+
+    // Team name
+    ctx.font = '600 10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = color;
+    ctx.fillText(bird.team_name, bx, by - radius - 14);
+
+    // Crown
+    if (showCrown) {
+      ctx.font = '14px sans-serif';
+      ctx.fillText('\uD83D\uDC51', bx, by - radius - 26);
+    }
+
+    // Score
+    ctx.font = '500 10px Inter, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillText('Score: ' + bird.score, bx, by + radius + 14);
+
+    ctx.restore();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Animation loop
+  // ---------------------------------------------------------------------------
+  function tick() {
+    requestAnimationFrame(tick);
+
+    if (!playing) return;
+
+    frameTick++;
+    if (frameTick < FRAME_INTERVAL) return;
+    frameTick = 0;
+
+    var ep = currentEpisode();
+    if (!ep || !ep.frames) return;
+
+    if (frameIdx < ep.frames.length - 1) {
+      frameIdx++;
+    } else {
+      // End of episode — auto-advance after a brief pause
+      if (frameTick === 0) {
+        // Hold the last frame for ~1 second (30 render ticks)
+        frameIdx = ep.frames.length - 1;
+        // Use a simple counter to hold
+        if (typeof tick._holdCount === 'undefined') tick._holdCount = 0;
+        tick._holdCount++;
+        if (tick._holdCount >= 30) {
+          tick._holdCount = 0;
+          advanceEpisode();
+        }
+        // Render the held frame
+      }
+    }
+
+    renderFrame();
+  }
+
+  function advanceEpisode() {
+    if (episodeIdx < REPLAY.episodes.length - 1) {
+      episodeIdx++;
+      frameIdx = 0;
+    } else {
+      // Loop back to first episode
+      episodeIdx = 0;
+      frameIdx = 0;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Controls
+  // ---------------------------------------------------------------------------
+  var btnPlay = document.getElementById('btn-play');
+  var btnNext = document.getElementById('btn-next');
+
+  btnPlay.addEventListener('click', function() {
+    playing = !playing;
+    btnPlay.textContent = playing ? 'Pause' : 'Play';
+    if (playing) {
+      // If we were at the end, kick-start the render
+      renderFrame();
+    }
+  });
+
+  btnNext.addEventListener('click', function() {
+    tick._holdCount = 0;
+    advanceEpisode();
+    frameIdx = 0;
+    renderFrame();
+  });
+
+  // ---------------------------------------------------------------------------
+  // Start
+  // ---------------------------------------------------------------------------
+  renderFrame();
+  requestAnimationFrame(tick);
+
+})();
+</script>
+</body>
+</html>

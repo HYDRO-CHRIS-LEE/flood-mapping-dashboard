@@ -474,7 +474,7 @@ def render_module4(available_events: list[str]):
                                            help="Auto-weight when flood samples are rare")
 
             st.markdown("---")
-            st.markdown(f"**Test events ({len(available_held_out)}):** {held_out_str}")
+            st.markdown(f"**Test events ({len(HELD_OUT_EVENTS)}):** {held_out_str}")
             st.caption("Fixed for fair competition — all teams evaluated on the same held-out events.")
 
         # Apply sample size + outlier removal to full dataset

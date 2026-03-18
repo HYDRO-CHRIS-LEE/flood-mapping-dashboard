@@ -294,6 +294,9 @@ def _render_right_panel():
     replay = st.session_state.get("flappy_replay")
     if replay is not None:
         _render_replay(replay)
+        if st.button("✕ Close Replay", key="close_replay", use_container_width=True):
+            del st.session_state["flappy_replay"]
+            st.rerun()
     else:
         st.markdown(
             '<div style="display:flex;align-items:center;justify-content:center;'

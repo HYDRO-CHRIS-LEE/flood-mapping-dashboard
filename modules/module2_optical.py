@@ -86,7 +86,19 @@ def render_module2(event: str):
             if layer != "NDWI Change (After − Before)":
                 period = st.radio("Time period", ["before", "after"])
 
-        if "NDWI" in layer:
+        if layer == "NDWI Change (After − Before)":
+            with st.container(border=True):
+                st.markdown(
+                    '<div class="card-title">NDWI Change Color Guide</div>'
+                    '<div style="display:flex;flex-direction:column;gap:6px;line-height:1.5;font-size:var(--fs-xs)">'
+                    '<div><span style="background:#2166ac;padding:1px 8px;border-radius:3px;color:white;font-size:10px">New water</span> &nbsp; Large positive change — flooded area</div>'
+                    '<div><span style="background:#92c5de;padding:1px 8px;border-radius:3px;font-size:10px">Wetter</span> &nbsp; Slight increase in water signal</div>'
+                    '<div><span style="background:#f7f7f7;padding:1px 8px;border-radius:3px;border:1px solid #eee;font-size:10px">No change</span></div>'
+                    '<div><span style="background:#d6604d;padding:1px 8px;border-radius:3px;color:white;font-size:10px">Drier</span> &nbsp; Slight decrease in water signal</div>'
+                    '<div><span style="background:#b2182b;padding:1px 8px;border-radius:3px;color:white;font-size:10px">Dried out</span> &nbsp; Large negative change</div>'
+                    '</div>',
+                    unsafe_allow_html=True)
+        elif "NDWI" in layer:
             with st.container(border=True):
                 st.markdown(
                     '<div class="card-title">NDWI Color Guide</div>'

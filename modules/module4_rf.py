@@ -419,7 +419,6 @@ def render_module4(available_events: list[str]):
         with st.container(border=True):
             st.markdown('<div class="control-title">Step 1 · Select Features</div>',
                         unsafe_allow_html=True)
-            st.markdown("**Choose input features** (min 2)")
             selected_features = []
             fc = st.columns(2)
             for i, feat in enumerate(ALL_FEATURES):
@@ -483,15 +482,11 @@ def render_module4(available_events: list[str]):
         if len(proc_df) < 10:
             st.warning("Too few samples after preprocessing.")
 
-        disabled = len(selected_features) < 2
-        if disabled:
-            st.warning("Select at least 2 features.")
-
-        run = st.button("🚀 Train AI Model!", disabled=disabled,
+        run = st.button("🚀 Train AI Model!",
                         use_container_width=True)
 
     with col_r:
-        if run and not disabled:
+        if run:
             with st.spinner(f"Training Random Forest on {len(train_events)} events..."):
                 t0 = time.time()
                 metrics, importance = train_rf(

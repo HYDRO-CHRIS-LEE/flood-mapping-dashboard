@@ -369,7 +369,7 @@ def inject_css():
     .chip-red    { background: var(--red-light);    color: var(--red) !important; }
 
     /* ── Hyperparameter guide panel ────────────────────────── */
-    .hp-guide { padding: 2px 0; }
+    .hp-guide { padding: 2px 0; background: #F1F5F9; border-radius: var(--radius); padding: 14px 16px; }
     .hp-guide-title {
         font-size: var(--fs-base) !important; font-weight: 600;
         color: var(--text) !important; margin-bottom: 12px;

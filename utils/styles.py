@@ -61,6 +61,19 @@ def inject_css():
         color: var(--text) !important;
     }
 
+    /* ── Global dropdown / popover fix ──────────────────────── */
+    /* Streamlit baseweb dropdowns, listboxes, popovers */
+    ul[role="listbox"] { background: #ffffff !important; border: 1px solid var(--border) !important; }
+    ul[role="listbox"] li { color: var(--text) !important; }
+    ul[role="listbox"] li:hover { background: var(--bg3) !important; }
+    ul[role="listbox"] li[aria-selected="true"] { background: var(--blue-light) !important; color: var(--blue) !important; }
+    div[data-baseweb="popover"] { background: #ffffff !important; border: 1px solid var(--border) !important; }
+    div[data-baseweb="popover"] li { color: var(--text) !important; }
+    div[data-baseweb="popover"] li:hover { background: var(--bg3) !important; }
+    div[data-baseweb="menu"] { background: #ffffff !important; }
+    div[data-baseweb="menu"] li { color: var(--text) !important; }
+    div[data-baseweb="menu"] li:hover { background: var(--bg3) !important; }
+
     /* ── Sidebar ─────────────────────────────────────────────── */
     [data-testid="stSidebar"] {
         background: var(--sidebar-bg) !important;
@@ -94,11 +107,19 @@ def inject_css():
     [data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] span,
     [data-testid="stSidebar"] .stMultiSelect div[data-baseweb="select"] span { color: #f1f5f9 !important; }
     [data-testid="stSidebar"] .stTextInput input { color: #f1f5f9 !important; }
-    /* Sidebar dropdown options — light text on dark background */
-    [data-testid="stSidebar"] ul[role="listbox"] { background: #1e2533 !important; }
-    [data-testid="stSidebar"] ul[role="listbox"] li { color: #f1f5f9 !important; }
-    [data-testid="stSidebar"] ul[role="listbox"] li:hover { background: #2d3748 !important; }
-    [data-testid="stSidebar"] ul[role="listbox"] li[aria-selected="true"] { background: #2563eb !important; }
+    /* Sidebar dropdown options — light text on dark background (overrides global) */
+    [data-testid="stSidebar"] ul[role="listbox"],
+    [data-testid="stSidebar"] div[data-baseweb="popover"],
+    [data-testid="stSidebar"] div[data-baseweb="menu"] { background: #1e2533 !important; border-color: rgba(255,255,255,0.1) !important; }
+    [data-testid="stSidebar"] ul[role="listbox"] li,
+    [data-testid="stSidebar"] div[data-baseweb="popover"] li,
+    [data-testid="stSidebar"] div[data-baseweb="menu"] li { color: #f1f5f9 !important; }
+    [data-testid="stSidebar"] ul[role="listbox"] li:hover,
+    [data-testid="stSidebar"] div[data-baseweb="popover"] li:hover,
+    [data-testid="stSidebar"] div[data-baseweb="menu"] li:hover { background: #2d3748 !important; }
+    [data-testid="stSidebar"] ul[role="listbox"] li[aria-selected="true"],
+    [data-testid="stSidebar"] div[data-baseweb="popover"] li[aria-selected="true"],
+    [data-testid="stSidebar"] div[data-baseweb="menu"] li[aria-selected="true"] { background: #2563eb !important; }
 
     .sidebar-top {
         padding: 18px 14px 14px;

@@ -24,7 +24,7 @@ LEADERBOARD_PATH = os.path.join(
 )
 
 FEATURE_INFO = {
-    "SAR_VH":         ("📡", "SAR VH",       "Radar backscatter (dB) — core water signal"),
+    "SAR_VH":         ("📡", "SAR VH",       "⚠️ Labels were derived from SAR — using this feature is circular reasoning. Try without it!"),
     "NDWI":           ("💧", "NDWI",          "Optical water index — green / NIR ratio"),
     "MNDWI":          ("🏙️", "MNDWI",         "Modified water index — better in urban areas"),
     "elevation":      ("🏔️", "Elevation",     "Height above sea level (m)"),
@@ -414,9 +414,18 @@ def render_module4(available_events: list[str]):
                 icon, short, desc = FEATURE_INFO[feat]
                 with fc[i % 2]:
                     if st.checkbox(f"{icon} {short}",
-                                   value=(feat in ["SAR_VH", "NDWI", "elevation"]),
+                                   value=(feat in ["NDWI", "elevation", "slope"]),
                                    help=desc, key=f"feat_{feat}"):
                         selected_features.append(feat)
+
+            if "SAR_VH" in selected_features:
+                st.markdown(
+                    '<div class="callout warn">'
+                    '<strong>⚠️ Circular reasoning warning</strong><br>'
+                    'Labels were generated from SAR thresholding. '
+                    'Including SAR_VH as a feature means the model is learning '
+                    'to reproduce the same threshold — try without it for a fair experiment!'
+                    '</div>', unsafe_allow_html=True)
 
             st.markdown("---")
             n_trees = st.slider("Number of trees", 10, 300, 100, 10)

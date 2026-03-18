@@ -116,6 +116,17 @@ def inject_css():
         background: var(--sidebar-bg) !important;
         border-right: 0.5px solid rgba(255,255,255,0.07);
     }
+    /* Sidebar collapse/expand toggle arrow — bright on dark bg */
+    [data-testid="stSidebar"] button[kind="header"],
+    [data-testid="collapsedControl"],
+    [data-testid="stSidebar"] [data-testid="baseButton-header"] {
+        color: #f1f5f9 !important;
+    }
+    [data-testid="stSidebar"] button[kind="header"] svg,
+    [data-testid="collapsedControl"] svg,
+    [data-testid="stSidebar"] [data-testid="baseButton-header"] svg {
+        fill: #f1f5f9 !important; stroke: #f1f5f9 !important;
+    }
     /* Sidebar text stays light on dark background */
     [data-testid="stSidebar"] p,
     [data-testid="stSidebar"] span,

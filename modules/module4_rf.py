@@ -10,6 +10,7 @@ import plotly.graph_objects as go
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (accuracy_score, precision_score,
                              recall_score, f1_score, confusion_matrix)
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from utils.data_loader import load_all_rf_samples, ALL_EVENTS
 from utils.normalization import validate_events, normalize_by_event
 from utils.leaderboard import add_entry, get_sorted
@@ -36,6 +37,58 @@ ALL_FEATURES = list(FEATURE_INFO.keys())
 def event_based_split(df: pd.DataFrame, held_out_event: str):
     test_mask = df["event"] == held_out_event
     return df[~test_mask].copy(), df[test_mask].copy()
+
+
+def apply_preprocessing(df: pd.DataFrame, features: list[str],
+                        sample_pct: int, outlier_method: str,
+                        seed: int = 42) -> pd.DataFrame:
+    """Apply sample size reduction and outlier removal to the full dataset."""
+    result = df.copy()
+
+    # 1. Sample size reduction (stratified by label)
+    if sample_pct < 100:
+        frac = sample_pct / 100
+        result = result.groupby("label", group_keys=False).apply(
+            lambda g: g.sample(frac=frac, random_state=seed)
+        ).reset_index(drop=True)
+
+    # 2. Outlier removal
+    if outlier_method == "IQR method":
+        for f in features:
+            q1 = result[f].quantile(0.25)
+            q3 = result[f].quantile(0.75)
+            iqr = q3 - q1
+            mask = (result[f] >= q1 - 1.5 * iqr) & (result[f] <= q3 + 1.5 * iqr)
+            result = result[mask]
+    elif outlier_method == "Z-score (>3σ)":
+        for f in features:
+            z = (result[f] - result[f].mean()) / (result[f].std() + 1e-8)
+            result = result[np.abs(z) <= 3]
+
+    return result.reset_index(drop=True)
+
+
+def apply_class_balance(df: pd.DataFrame, method: str,
+                        seed: int = 42) -> pd.DataFrame:
+    """Balance classes in training data only."""
+    if method == "None":
+        return df
+
+    flood = df[df["label"] == 1]
+    nonflood = df[df["label"] == 0]
+
+    if method == "Oversample minority":
+        if len(flood) < len(nonflood) and len(flood) > 0:
+            flood = flood.sample(n=len(nonflood), replace=True, random_state=seed)
+        elif len(nonflood) < len(flood) and len(nonflood) > 0:
+            nonflood = nonflood.sample(n=len(flood), replace=True, random_state=seed)
+    elif method == "Undersample majority":
+        if len(flood) < len(nonflood):
+            nonflood = nonflood.sample(n=len(flood), random_state=seed)
+        elif len(nonflood) < len(flood):
+            flood = flood.sample(n=len(nonflood), random_state=seed)
+
+    return pd.concat([flood, nonflood]).reset_index(drop=True)
 
 
 def train_rf(df: pd.DataFrame, features: list[str],

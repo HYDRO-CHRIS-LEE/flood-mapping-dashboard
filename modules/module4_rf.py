@@ -286,7 +286,7 @@ def render_module4(available_events: list[str]):
 
     st.markdown("""
     <div class="section-header">
-        <div class="section-icon">🤖</div>
+        <div class="section-icon">🧠</div>
         <div>
             <div class="section-title">AI Flood Classifier</div>
             <div class="section-desc">
@@ -680,7 +680,7 @@ def render_module4(available_events: list[str]):
             <div style="height:280px;display:flex;align-items:center;justify-content:center;
                         border:0.5px dashed var(--border);border-radius:10px;color:var(--text-muted)">
                 <div style="text-align:center">
-                    <div style="font-size:2.5rem">🤖</div>
+                    <div style="font-size:2.5rem">🧠</div>
                     <div style="margin-top:8px;font-size:13px">
                         Set parameters on the left and press<br><b>Train AI Model!</b>
                     </div>

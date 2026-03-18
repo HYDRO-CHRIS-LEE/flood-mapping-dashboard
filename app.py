@@ -38,7 +38,7 @@ PAGES = {
     "rainfall":  {"label": "Rainfall Timeline",     "icon": "🌧️", "section": 1},
     "optical":   {"label": "Optical Before / After", "icon": "🛰️", "section": 1},
     "sar":       {"label": "SAR Detection",          "icon": "📡", "section": 1},
-    "classifier":{"label": "AI Flood Classifier",    "icon": "🤖", "section": 2},
+    "classifier":{"label": "AI Flood Classifier",    "icon": "🧠", "section": 2},
 }
 if "active_page" not in st.session_state:
     st.session_state.active_page = "rainfall"

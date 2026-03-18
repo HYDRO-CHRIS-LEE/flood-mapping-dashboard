@@ -156,7 +156,7 @@ def inject_css():
     [data-testid="stSidebar"] div[data-baseweb="select"] > div { background: var(--sb-card) !important; border-color: rgba(255,255,255,0.1) !important; }
     [data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] span,
     [data-testid="stSidebar"] .stMultiSelect div[data-baseweb="select"] span { color: #f1f5f9 !important; }
-    [data-testid="stSidebar"] .stTextInput input { color: #f1f5f9 !important; }
+    [data-testid="stSidebar"] .stTextInput input { color: #f1f5f9 !important; background: var(--sb-card) !important; border-color: rgba(255,255,255,0.1) !important; }
     /* Sidebar dropdown options — light text on dark background (overrides global) */
     [data-testid="stSidebar"] ul[role="listbox"],
     [data-testid="stSidebar"] div[data-baseweb="popover"],

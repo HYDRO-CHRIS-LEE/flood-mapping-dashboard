@@ -4,7 +4,7 @@ UCI CHRS EarthAI Program
 """
 
 import streamlit as st
-import base64, os
+import os
 
 st.set_page_config(
     page_title="AI Flood Mapping | UCI CHRS",
@@ -23,17 +23,6 @@ from utils.data_loader       import get_available_events, ALL_EVENTS
 
 inject_css()
 
-# ── CHRS logo ─────────────────────────────────────────────────────
-LOGO_PATH = os.path.join(os.path.dirname(__file__), "assets", "CHRS_LOGO.png")
-def get_logo_b64():
-    if os.path.exists(LOGO_PATH):
-        with open(LOGO_PATH, "rb") as f:
-            return "data:image/png;base64," + base64.b64encode(f.read()).decode()
-    return ""
-
-LOGO_B64 = get_logo_b64()
-LOGO_IMG  = f'<img src="{LOGO_B64}" class="sidebar-logo-img">' if LOGO_B64 else "🌊"
-
 # ── Navigation state ──────────────────────────────────────────────
 PAGES = {
     "rainfall":  {"label": "Rainfall Timeline",     "icon": "🌧️", "section": 1},
@@ -50,13 +39,15 @@ active = st.session_state.active_page
 # ── Sidebar ───────────────────────────────────────────────────────
 with st.sidebar:
     # Logo + brand
-    st.markdown(f"""
+    st.markdown("""
     <div class="sidebar-top">
         <div class="sidebar-logo-row">
-            {LOGO_IMG}
+            <div style="width:40px;height:40px;border-radius:12px;background:#0058bc;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                <span class="material-symbols-outlined" style="color:white;font-size:22px">water_drop</span>
+            </div>
             <div class="sidebar-brand">
-                <div class="sidebar-brand-main">AI Flood Mapping</div>
-                <div class="sidebar-brand-sub">UCI CHRS EarthAI Program</div>
+                <div class="sidebar-brand-main">EarthAI</div>
+                <div class="sidebar-brand-sub">Planetary Intelligence</div>
             </div>
         </div>
     </div>
@@ -142,23 +133,30 @@ with st.sidebar:
 page_info = PAGES[active]
 
 if active not in ("classifier", "flappybird"):
+    overline = f"{ev['label']} ({ev['year']}) &middot; {ev['region']}"
     st.markdown(f"""
-    <div class="page-header">
-        <div class="page-title">{page_info['icon']}  {page_info['label']}</div>
-        <div class="page-sub">
-            <strong>{ev['label']}</strong> ({ev['year']})
-            &nbsp;·&nbsp; 📍 {ev['region']}
-        </div>
+    <div class="hero-header">
+        <div class="hero-overline">{overline}</div>
+        <h1 class="hero-title">{page_info['label']}</h1>
+        <div class="hero-subtitle">Real-time satellite intelligence and flood detection analytics.</div>
     </div>
     """, unsafe_allow_html=True)
 else:
+    overlines = {
+        "classifier": "Classifier Engine",
+        "flappybird": "Agent Registry v4.2",
+    }
+    subtitles = {
+        "classifier": "Multimodal spatial-temporal segmentation workbench.",
+        "flappybird": "Reinforcement learning simulation environment.",
+    }
     st.markdown(f"""
-    <div class="page-header">
-        <div class="page-title">{page_info['icon']}  {page_info['label']}</div>
+    <div class="hero-header">
+        <div class="hero-overline">{overlines.get(active, '')}</div>
+        <h1 class="hero-title">{page_info['label']}</h1>
+        <div class="hero-subtitle">{subtitles.get(active, '')}</div>
     </div>
     """, unsafe_allow_html=True)
-
-st.markdown('<hr style="margin:0 0 20px 0">', unsafe_allow_html=True)
 
 # ── Page routing ──────────────────────────────────────────────────
 if active == "rainfall":
@@ -171,3 +169,16 @@ elif active == "classifier":
     render_module4(available)
 elif active == "flappybird":
     render_module5()
+
+st.markdown("""
+<div class="footer-bar" style="display:flex;justify-content:space-between;align-items:center">
+    <div style="display:flex;gap:2rem">
+        <span>Last Synced: 2 mins ago</span>
+        <span>Source: EarthAI Cloud</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px">
+        <div class="footer-dot"></div>
+        <span>Live Satellite Feed Active</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)

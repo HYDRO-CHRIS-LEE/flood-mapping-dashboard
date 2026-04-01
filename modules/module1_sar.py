@@ -45,18 +45,6 @@ def make_map(event, sar, flood):
 
 def render_module1(event: str):
     st.markdown("""
-    <div class="section-header">
-        <div class="section-icon">📡</div>
-        <div>
-            <div class="section-title">SAR Detection</div>
-            <div class="section-desc">
-                Sentinel-1 radar detects floods through clouds — and AI finds the optimal cutoff automatically.
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("""
     <div class="callout">
         <strong>How SAR Works</strong> &nbsp;
         Radar pulses bounce off calm water <em>away</em> from the sensor → <strong>dark (low dB)</strong> pixels.

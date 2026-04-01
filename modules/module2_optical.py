@@ -51,19 +51,6 @@ def make_map(event: str, layer: str, period: str) -> folium.Map:
 
 
 def render_module2(event: str):
-    st.markdown("""
-    <div class="section-header">
-        <div class="section-icon">🛰️</div>
-        <div>
-            <div class="section-title">Optical Before / After</div>
-            <div class="section-desc">
-                Compare Sentinel-2 satellite images before and after the flood,
-                and discover the limitations of optical sensors.
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
     if event in CLOUD_NOTE:
         ntype, ntext = CLOUD_NOTE[event]
         icon = "⚠️" if ntype == "warn" else "✅"

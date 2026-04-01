@@ -65,18 +65,6 @@ def render_module6(event: str):
     ev = ALL_EVENTS.get(event, {})
 
     st.markdown("""
-    <div class="section-header">
-        <div class="section-icon">🌧️</div>
-        <div>
-            <div class="section-title">Rainfall Timeline</div>
-            <div class="section-desc">
-                Explore GPM satellite precipitation data — find the rainfall trigger behind the flood.
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("""
     <div class="callout">
         <strong>Think About It</strong> &nbsp;
         If you know when and where it rained, can you predict when and where flooding will occur?

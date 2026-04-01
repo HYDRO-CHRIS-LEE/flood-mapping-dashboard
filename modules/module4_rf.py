@@ -284,19 +284,6 @@ def render_leaderboard_from_json():
 # ── Main render ───────────────────────────────────────────────────
 def render_module4(available_events: list[str]):
 
-    st.markdown("""
-    <div class="section-header">
-        <div class="section-icon">🧠</div>
-        <div>
-            <div class="section-title">AI Flood Classifier</div>
-            <div class="section-desc">
-                Train a Random Forest model across multiple flood events —
-                tune parameters and compete for the best F1 score.
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
     held_out_labels = [
         f"{ALL_EVENTS.get(e, {}).get('label', e)} ({ALL_EVENTS.get(e, {}).get('year', '')})"
         for e in HELD_OUT_EVENTS

@@ -99,23 +99,6 @@ def render_module5():
     team = _team()
     unlocked = _unlocked_stages(team)
 
-    # ── Section header (follows module4 pattern) ──────────────────
-    st.markdown(
-        """
-    <div class="section-header">
-        <div class="section-icon">🐦</div>
-        <div>
-            <div class="section-title">Flappy Bird AI Competition</div>
-            <div class="section-desc">
-                Train a DQN agent to navigate five progressively harder stages —
-                tighter gaps, faster pipes. Beat each stage's score threshold to unlock the next.
-            </div>
-        </div>
-    </div>
-    """,
-        unsafe_allow_html=True,
-    )
-
     # ── Stage badges row ──────────────────────────────────────────
     badges_html = "".join(_stage_badge(sid, unlocked) for sid in _STAGE_IDS)
     st.markdown(

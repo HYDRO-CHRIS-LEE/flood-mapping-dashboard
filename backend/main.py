@@ -12,6 +12,8 @@ from fastapi.staticfiles import StaticFiles
 from backend.config import FRONTEND_DIR
 from backend.db import init_db
 from backend.routers.events import router as events_router
+from backend.routers.optical import router as optical_router
+from backend.routers.rainfall import router as rainfall_router
 
 
 @asynccontextmanager
@@ -34,6 +36,8 @@ app.add_middleware(
 
 # ── Routers ──────────────────────────────────────────────────────
 app.include_router(events_router)
+app.include_router(rainfall_router)
+app.include_router(optical_router)
 
 
 # ── Custom error handler ────────────────────────────────────────

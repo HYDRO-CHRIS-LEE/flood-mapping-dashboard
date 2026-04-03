@@ -17,6 +17,7 @@ from backend.routers.rainfall import router as rainfall_router
 from backend.routers.sar import router as sar_router
 from backend.routers.classifier import router as classifier_router
 from backend.routers.leaderboard import router as leaderboard_router
+from backend.routers.flappy import router as flappy_router
 
 
 @asynccontextmanager
@@ -44,6 +45,7 @@ app.include_router(optical_router)
 app.include_router(sar_router)
 app.include_router(classifier_router)
 app.include_router(leaderboard_router)
+app.include_router(flappy_router)
 
 
 # ── Custom error handler ────────────────────────────────────────

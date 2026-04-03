@@ -1,12 +1,12 @@
-<!-- Flappy Bird Competition page fragment -->
+<!-- Flappy Bird Competition page fragment — RF Classifier Deploy -->
 
 <!-- Hero -->
 <section class="mb-8">
   <div class="flex justify-between items-end">
     <div>
-      <span class="text-blue-600 font-semibold text-sm tracking-widest uppercase mb-2 block">Agent Registry v4.2</span>
+      <span class="text-blue-600 font-semibold text-sm tracking-widest uppercase mb-2 block">Agent Registry</span>
       <h3 class="text-5xl font-black negative-tracking text-on-background">Flappy Bird Competition</h3>
-      <p class="text-on-surface-variant mt-3 text-lg font-medium opacity-80">Upload your RL model, race against other teams, climb the leaderboard.</p>
+      <p class="text-on-surface-variant mt-3 text-lg font-medium opacity-80">Your AI flood classifier is the bird's brain</p>
     </div>
     <div class="flex gap-3">
       <button onclick="if(typeof init_flappy==='function'){init_flappy();}" class="px-6 py-2.5 bg-surface-container-high text-on-surface rounded-full font-bold text-sm hover:bg-surface-container-highest transition-all">
@@ -16,8 +16,18 @@
   </div>
 </section>
 
+<!-- Model Status Card (full width) -->
+<section class="mb-6">
+  <div id="flappy-model-status" class="bg-surface-container-lowest rounded-[2rem] p-8">
+    <div class="flex items-center gap-3">
+      <span class="material-symbols-outlined text-outline animate-spin">hourglass_top</span>
+      <span class="text-sm text-on-surface-variant">Checking classifier status...</span>
+    </div>
+  </div>
+</section>
+
 <!-- Stage Badges Row -->
-<section class="mb-8">
+<section class="mb-6">
   <div id="flappy-stage-badges" class="flex flex-wrap gap-3">
     <!-- Populated by JS -->
   </div>
@@ -27,16 +37,16 @@
 <div class="grid grid-cols-12 gap-6">
 
   <!-- ============================================================ -->
-  <!-- Col 8: Replay Viewport                                       -->
+  <!-- Col 8: Canvas Replay Viewport                                -->
   <!-- ============================================================ -->
   <div class="col-span-8 bg-surface-container-lowest rounded-[2rem] overflow-hidden relative group border border-surface-container-high shadow-sm">
     <div class="absolute inset-0 bg-gradient-to-b from-blue-400/10 to-transparent pointer-events-none z-10"></div>
 
-    <!-- Active Simulation badge -->
+    <!-- Active badge -->
     <div class="absolute top-6 left-6 z-20">
       <div class="flex items-center gap-2 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/50">
         <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-        <span class="text-[10px] font-bold text-slate-900 uppercase tracking-widest">Race Replay</span>
+        <span class="text-[10px] font-bold text-slate-900 uppercase tracking-widest">Replay</span>
       </div>
     </div>
 
@@ -46,10 +56,10 @@
 
       <!-- Overlay info -->
       <div id="replay-overlay" class="absolute top-6 right-6 z-20 bg-black/70 backdrop-blur-md border border-white/10 rounded-xl px-4 py-3 text-white text-xs leading-relaxed pointer-events-none">
-        <div><span class="text-slate-400 font-medium">Stage:</span> <span class="font-semibold" id="flappy-info-stage">--</span> &nbsp; <span class="text-slate-400 font-medium">Gap:</span> <span class="font-semibold" id="flappy-info-gap">--</span></div>
+        <div><span class="text-slate-400 font-medium">Stage:</span> <span class="font-semibold" id="flappy-info-stage">--</span></div>
         <div><span class="text-slate-400 font-medium">Episode:</span> <span class="font-semibold" id="flappy-info-episode">--</span></div>
         <div><span class="text-slate-400 font-medium">Frame:</span> <span class="font-semibold" id="flappy-info-frame">--</span></div>
-        <div><span class="text-slate-400 font-medium">Alive:</span> <span class="font-semibold" id="flappy-info-alive">--</span></div>
+        <div><span class="text-slate-400 font-medium">Score:</span> <span class="font-semibold" id="flappy-info-score">--</span></div>
       </div>
 
       <!-- Controls -->
@@ -57,14 +67,50 @@
         <button id="flappy-btn-play" class="px-4 py-2 bg-black/70 backdrop-blur-md border border-white/10 rounded-lg text-white text-xs font-semibold hover:bg-black/90 transition-colors">Play</button>
         <button id="flappy-btn-next" class="px-4 py-2 bg-black/70 backdrop-blur-md border border-white/10 rounded-lg text-white text-xs font-semibold hover:bg-black/90 transition-colors">Next Episode</button>
       </div>
+    </div>
+  </div>
 
-      <!-- Score + Success overlays -->
-      <div class="absolute bottom-6 right-6 z-20 flex gap-3">
-        <div class="bg-white/90 backdrop-blur-md p-3 rounded-2xl border border-white/50 shadow-sm">
-          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Stage</p>
-          <p class="text-xl font-black text-slate-900 tracking-tighter" id="flappy-score-stage">--</p>
+  <!-- ============================================================ -->
+  <!-- Col 4: Deploy Panel                                          -->
+  <!-- ============================================================ -->
+  <div class="col-span-4 bg-surface-container-lowest rounded-[2rem] p-8 border border-surface-container-high shadow-sm flex flex-col gap-6">
+
+    <!-- Deploy header -->
+    <div>
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-primary">
+          <span class="material-symbols-outlined">rocket_launch</span>
+        </div>
+        <h4 class="text-lg font-bold negative-tracking text-on-background">Deploy Classifier</h4>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2 block">Stage</label>
+          <select id="flappy-stage-select" class="w-full bg-surface-container-low border-none rounded-xl text-sm py-3 px-4">
+            <!-- Populated by JS -->
+          </select>
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2 block">Mode</label>
+          <div class="flex gap-2">
+            <button id="flappy-mode-practice" class="flex-1 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors bg-primary text-white">Practice</button>
+            <button id="flappy-mode-leaderboard" class="flex-1 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high">Leaderboard</button>
+          </div>
         </div>
       </div>
+    </div>
+
+    <!-- Deploy button -->
+    <button id="flappy-deploy-btn" class="w-full bg-primary text-white rounded-full font-bold text-sm shadow-lg shadow-primary/20 py-3 flex items-center justify-center gap-2 hover:bg-primary-container transition-colors">
+      <span class="material-symbols-outlined text-[18px]">smart_toy</span>
+      Deploy My Classifier
+    </button>
+    <div id="flappy-deploy-status"></div>
+
+    <!-- Score summary (after run) -->
+    <div id="flappy-score-summary" class="hidden">
+      <!-- Populated by JS after a deploy run -->
     </div>
   </div>
 
@@ -74,6 +120,13 @@
   <div class="col-span-4 bg-surface-container-low rounded-[2rem] p-8 flex flex-col border border-surface-container-high h-full">
     <div class="flex justify-between items-center mb-4">
       <h4 class="font-bold text-xl text-on-background negative-tracking">Live Leaderboard</h4>
+      <div class="flex items-center gap-2">
+        <span class="relative flex h-2.5 w-2.5">
+          <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
+          <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500"></span>
+        </span>
+        <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Live</span>
+      </div>
     </div>
 
     <!-- Stage tabs -->
@@ -85,109 +138,42 @@
     <div id="flappy-lb-body" class="space-y-2 flex-1 overflow-y-auto pr-1">
       <div class="text-center py-8 text-on-surface-variant text-sm">Loading leaderboard...</div>
     </div>
-
-    <button class="mt-4 text-xs font-bold text-slate-400 hover:text-on-surface transition-colors uppercase tracking-widest py-2 text-center">
-      View Full Rankings
-    </button>
   </div>
 
   <!-- ============================================================ -->
-  <!-- Col 4: Upload + Submit Panel                                 -->
-  <!-- ============================================================ -->
-  <div class="col-span-4 bg-surface-container-lowest rounded-[2rem] p-8 border border-surface-container-high shadow-sm flex flex-col gap-6">
-
-    <!-- Architecture selector -->
-    <div>
-      <div class="flex items-center gap-3 mb-4">
-        <div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-primary">
-          <span class="material-symbols-outlined">model_training</span>
-        </div>
-        <h4 class="text-lg font-bold negative-tracking text-on-background">Model Config</h4>
-      </div>
-
-      <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2 block">Architecture</label>
-      <select id="flappy-arch-select" class="w-full bg-surface-container-low border-none rounded-xl text-sm py-3 px-4 mb-3">
-        <!-- Populated by JS -->
-      </select>
-
-      <div id="flappy-hyperparam-info" class="text-sm">
-        <!-- Populated by JS -->
-      </div>
-    </div>
-
-    <!-- Upload section -->
-    <div>
-      <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-3">Upload Model</p>
-
-      <label class="block mb-2">
-        <span class="text-xs font-semibold text-on-surface-variant mb-1 block">state_dict.pt</span>
-        <input type="file" id="flappy-upload-sd" accept=".pt" class="w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-primary/10 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-primary hover:file:bg-primary/20 transition-colors" />
-      </label>
-
-      <label class="block mb-3">
-        <span class="text-xs font-semibold text-on-surface-variant mb-1 block">metadata.json</span>
-        <input type="file" id="flappy-upload-meta" accept=".json" class="w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-primary/10 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-primary hover:file:bg-primary/20 transition-colors" />
-      </label>
-
-      <button id="flappy-upload-btn" class="w-full bg-primary text-white rounded-xl font-bold text-sm py-3 flex items-center justify-center gap-2 hover:bg-primary-container transition-colors shadow-lg shadow-primary/10">
-        <span class="material-symbols-outlined text-[18px]">upload_file</span>
-        Upload & Validate
-      </button>
-      <div id="flappy-upload-status"></div>
-    </div>
-
-    <!-- Submit section -->
-    <div>
-      <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-3">Submit to Stage</p>
-
-      <label class="text-xs font-semibold text-on-surface-variant mb-1 block">Target Stage</label>
-      <select id="flappy-submit-stage" class="w-full bg-surface-container-low border-none rounded-xl text-sm py-3 px-4 mb-3">
-        <!-- Populated by JS -->
-      </select>
-
-      <button id="flappy-submit-btn" class="w-full bg-slate-900 text-white rounded-xl font-bold text-sm py-3 flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors">
-        <span class="material-symbols-outlined text-[18px]">send</span>
-        Submit to Stage
-      </button>
-      <div id="flappy-submit-status"></div>
-    </div>
-  </div>
-
-  <!-- ============================================================ -->
-  <!-- Col 8: Dark Panel — Environment Physics + Admin Race         -->
+  <!-- Col 8: Dark Panel — How It Works + Admin Race                -->
   <!-- ============================================================ -->
   <div class="col-span-8 bg-slate-950 rounded-[2rem] overflow-hidden flex shadow-xl border border-slate-900">
 
-    <!-- Environment Physics -->
+    <!-- How It Works -->
     <div class="w-3/5 p-8 flex flex-col justify-between border-r border-white/5">
       <div>
         <div class="flex items-center gap-3 mb-6">
           <div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-            <span class="material-symbols-outlined">cloud</span>
+            <span class="material-symbols-outlined">school</span>
           </div>
-          <h4 class="text-lg font-bold text-white negative-tracking">Environment Physics</h4>
+          <h4 class="text-lg font-bold text-white negative-tracking">How It Works</h4>
         </div>
-        <div class="grid grid-cols-2 gap-4">
+        <div class="space-y-4">
           <div class="p-4 bg-white/5 rounded-2xl border border-white/5">
-            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Gravity</p>
-            <p class="text-xl font-black text-white">9.81 m/s&sup2;</p>
+            <p class="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-1">Step 1</p>
+            <p class="text-sm font-semibold text-white">Each pipe is a real flood test sample</p>
+            <p class="text-xs text-slate-400 mt-1">When the bird reaches a pipe, your RF classifier must predict: flood or non-flood?</p>
           </div>
           <div class="p-4 bg-white/5 rounded-2xl border border-white/5">
-            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Jump Force</p>
-            <p class="text-xl font-black text-white">4.5 kg&middot;m/s</p>
+            <p class="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1">Step 2</p>
+            <p class="text-sm font-semibold text-white">Correct = fly through the gap</p>
+            <p class="text-xs text-slate-400 mt-1">The bird navigates safely through the pipe gap when the prediction matches the true label.</p>
           </div>
           <div class="p-4 bg-white/5 rounded-2xl border border-white/5">
-            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Pipe Gap</p>
-            <p class="text-xl font-black text-white">120&ndash;170 px</p>
-          </div>
-          <div class="p-4 bg-white/5 rounded-2xl border border-white/5">
-            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Speed</p>
-            <p class="text-xl font-black text-white">slow / fast</p>
+            <p class="text-[10px] font-bold text-red-400 uppercase tracking-widest mb-1">Step 3</p>
+            <p class="text-sm font-semibold text-white">Wrong = crash into the pipe</p>
+            <p class="text-xs text-slate-400 mt-1">A misclassification causes the bird to crash. Higher stages use harder-to-classify samples.</p>
           </div>
         </div>
       </div>
-      <a href="https://gymnasium.farama.org/" target="_blank" class="text-emerald-400 font-bold text-sm flex items-center gap-2 group mt-6">
-        Physics Documentation
+      <a href="#classifier" class="text-emerald-400 font-bold text-sm flex items-center gap-2 group mt-6">
+        Go to Classifier Page
         <span class="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform">arrow_forward</span>
       </a>
     </div>
@@ -232,11 +218,11 @@
 <footer class="mt-12 grid grid-cols-1 md:grid-cols-4 gap-6">
   <div class="bg-white p-6 rounded-3xl border border-surface-container-high flex items-center gap-4 shadow-sm">
     <div class="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
-      <span class="material-symbols-outlined">groups</span>
+      <span class="material-symbols-outlined">smart_toy</span>
     </div>
     <div>
-      <p class="text-xl font-black text-on-background tracking-tight">--</p>
-      <p class="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">Active Models</p>
+      <p class="text-xl font-black text-on-background tracking-tight">RF</p>
+      <p class="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">Classifier Type</p>
     </div>
   </div>
   <div class="bg-white p-6 rounded-3xl border border-surface-container-high flex items-center gap-4 shadow-sm">
@@ -245,7 +231,7 @@
     </div>
     <div>
       <p class="text-xl font-black text-on-background tracking-tight">5 stages</p>
-      <p class="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">Competition Tiers</p>
+      <p class="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">Difficulty Tiers</p>
     </div>
   </div>
   <div class="bg-white p-6 rounded-3xl border border-surface-container-high flex items-center gap-4 shadow-sm">
@@ -254,16 +240,16 @@
     </div>
     <div>
       <p class="text-xl font-black text-on-background tracking-tight">10 seeds</p>
-      <p class="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">Episodes / Race</p>
+      <p class="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">Episodes / Run</p>
     </div>
   </div>
   <div class="bg-white p-6 rounded-3xl border border-surface-container-high flex items-center gap-4 shadow-sm">
     <div class="w-10 h-10 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center">
-      <span class="material-symbols-outlined">event_repeat</span>
+      <span class="material-symbols-outlined">water_drop</span>
     </div>
     <div>
-      <p class="text-xl font-black text-on-background tracking-tight">DQN</p>
-      <p class="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">Model Architecture</p>
+      <p class="text-xl font-black text-on-background tracking-tight">Flood</p>
+      <p class="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">Test Samples</p>
     </div>
   </div>
 </footer>
@@ -271,8 +257,8 @@
 <!-- Metadata Bar -->
 <div class="mt-8 flex justify-between items-center text-on-surface-variant text-[10px] font-bold uppercase tracking-widest">
   <div class="flex gap-8">
-    <span>Protocol: v1.0</span>
-    <span>Env: FlappyBird-v0</span>
+    <span>Protocol: v2.0</span>
+    <span>Agent: RF Classifier</span>
   </div>
   <div class="flex items-center gap-2">
     <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>

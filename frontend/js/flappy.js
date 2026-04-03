@@ -1,11 +1,11 @@
-/* Flappy Bird Competition page logic */
+/* Flappy Bird Competition — RF Classifier Deploy */
 
 function init_flappy() {
   // ── State ───────────────────────────────────────────────────────
   var stages = {};
-  var architectures = [];
   var unlockedStages = [];
-  var currentModelId = null;
+  var modelStatus = null;
+  var selectedMode = 'practice';
   var activeLeaderboardStage = 1;
   var leaderboardInterval = null;
 
@@ -33,23 +33,20 @@ function init_flappy() {
     '#2563eb','#ef4444','#16a34a','#d97706','#8b5cf6',
     '#06b6d4','#f43f5e','#fb923c','#a3e635','#c084fc'
   ];
-  var teamColorMap = {};
 
   // ── DOM refs ────────────────────────────────────────────────────
   var canvas = document.getElementById('replay-canvas');
   var ctx = canvas ? canvas.getContext('2d') : null;
   var canvasContainer = document.getElementById('replay-container');
 
+  var modelStatusEl = document.getElementById('flappy-model-status');
   var stageBadgesRow = document.getElementById('flappy-stage-badges');
-  var archSelector = document.getElementById('flappy-arch-select');
-  var hyperparamInfo = document.getElementById('flappy-hyperparam-info');
-  var uploadStateDict = document.getElementById('flappy-upload-sd');
-  var uploadMetadata = document.getElementById('flappy-upload-meta');
-  var uploadBtn = document.getElementById('flappy-upload-btn');
-  var uploadStatus = document.getElementById('flappy-upload-status');
-  var submitStageSelect = document.getElementById('flappy-submit-stage');
-  var submitBtn = document.getElementById('flappy-submit-btn');
-  var submitStatus = document.getElementById('flappy-submit-status');
+  var stageSelect = document.getElementById('flappy-stage-select');
+  var modePracticeBtn = document.getElementById('flappy-mode-practice');
+  var modeLeaderboardBtn = document.getElementById('flappy-mode-leaderboard');
+  var deployBtn = document.getElementById('flappy-deploy-btn');
+  var deployStatus = document.getElementById('flappy-deploy-status');
+  var scoreSummary = document.getElementById('flappy-score-summary');
 
   var adminPassword = document.getElementById('flappy-admin-pw');
   var adminStageSelect = document.getElementById('flappy-admin-stage');
@@ -59,10 +56,9 @@ function init_flappy() {
   var btnPlay = document.getElementById('flappy-btn-play');
   var btnNext = document.getElementById('flappy-btn-next');
   var overlayStage = document.getElementById('flappy-info-stage');
-  var overlayGap = document.getElementById('flappy-info-gap');
   var overlayEpisode = document.getElementById('flappy-info-episode');
   var overlayFrame = document.getElementById('flappy-info-frame');
-  var overlayAlive = document.getElementById('flappy-info-alive');
+  var overlayScore = document.getElementById('flappy-info-score');
 
   var lbTabsContainer = document.getElementById('flappy-lb-tabs');
   var lbBody = document.getElementById('flappy-lb-body');
@@ -71,21 +67,90 @@ function init_flappy() {
 
   // ── Helpers ─────────────────────────────────────────────────────
 
-  function teamName() {
-    return localStorage.getItem('earthai_name') || 'Student';
-  }
-
   function teamId() {
     return localStorage.getItem('earthai_team_id') || '';
   }
 
-  // ── 1. Load stages and architectures ────────────────────────────
+  function teamName() {
+    return localStorage.getItem('earthai_name') || 'Student';
+  }
 
-  function loadStagesAndArchitectures() {
+  // ── 1. Check model status ──────────────────────────────────────
+
+  function checkModelStatus() {
+    var tid = teamId();
+    if (!tid) {
+      renderNoModel('No team ID found. Please log in first.');
+      return;
+    }
+
+    API.get('/flappy/model-status/' + encodeURIComponent(tid)).then(function(data) {
+      modelStatus = data;
+      if (data && data.has_model) {
+        renderModelInfo(data);
+      } else {
+        renderNoModel('No classifier submitted yet');
+      }
+    }).catch(function(err) {
+      console.error('Failed to check model status:', err);
+      renderNoModel('Could not check classifier status');
+    });
+  }
+
+  function renderModelInfo(data) {
+    if (!modelStatusEl) return;
+    var f1Pct = Math.round((data.f1 || 0) * 100);
+    var accPct = Math.round((data.accuracy || 0) * 100);
+    var features = data.features || [];
+    var featureStr = features.length > 5
+      ? features.slice(0, 5).join(', ') + ' + ' + (features.length - 5) + ' more'
+      : features.join(', ');
+
+    modelStatusEl.className = 'bg-surface-container-lowest rounded-[2rem] p-8';
+    modelStatusEl.innerHTML =
+      '<div class="flex items-center justify-between">' +
+        '<div class="flex items-center gap-4">' +
+          '<div class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600">' +
+            '<span class="material-symbols-outlined text-2xl">check_circle</span>' +
+          '</div>' +
+          '<div>' +
+            '<p class="text-lg font-bold text-on-background negative-tracking">Your Classifier</p>' +
+            '<p class="text-sm text-on-surface-variant mt-0.5">F1 <span class="font-black text-emerald-600">' + f1Pct + '%</span> &middot; Accuracy <span class="font-bold">' + accPct + '%</span></p>' +
+          '</div>' +
+        '</div>' +
+        '<div class="text-right">' +
+          '<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-1">Features</p>' +
+          '<p class="text-xs text-on-surface font-medium max-w-xs">' + featureStr + '</p>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function renderNoModel(msg) {
+    if (!modelStatusEl) return;
+    modelStatusEl.className = 'bg-error-container rounded-[2rem] p-8';
+    modelStatusEl.innerHTML =
+      '<div class="flex items-center justify-between">' +
+        '<div class="flex items-center gap-4">' +
+          '<div class="w-12 h-12 rounded-2xl bg-error/10 flex items-center justify-center text-error">' +
+            '<span class="material-symbols-outlined text-2xl">warning</span>' +
+          '</div>' +
+          '<div>' +
+            '<p class="text-lg font-bold text-on-error-container negative-tracking">' + msg + '</p>' +
+            '<p class="text-sm text-on-error-container/70 mt-0.5">Train and submit a Random Forest on the Classifier page first.</p>' +
+          '</div>' +
+        '</div>' +
+        '<a href="#classifier" class="px-6 py-2.5 bg-primary text-white rounded-full font-bold text-sm hover:bg-primary-container transition-all flex items-center gap-2 whitespace-nowrap">' +
+          '<span class="material-symbols-outlined text-[18px]">arrow_forward</span>' +
+          'Go to Classifier' +
+        '</a>' +
+      '</div>';
+  }
+
+  // ── 2. Load stages and unlocked ─────────────────────────────────
+
+  function loadStages() {
     API.get('/flappy/stages').then(function(data) {
       stages = data.stages || {};
-      architectures = data.architectures || [];
-      renderArchitectureSelector();
       renderStageSelectors();
       loadUnlockedStages();
     }).catch(function(err) {
@@ -94,8 +159,16 @@ function init_flappy() {
   }
 
   function loadUnlockedStages() {
-    var name = teamName();
-    API.get('/flappy/unlocked/' + encodeURIComponent(name)).then(function(data) {
+    var tid = teamId();
+    if (!tid) {
+      unlockedStages = [1];
+      renderStageBadges();
+      renderStageSelectors();
+      renderLeaderboardTabs();
+      return;
+    }
+
+    API.get('/flappy/unlocked/' + encodeURIComponent(tid)).then(function(data) {
       unlockedStages = data || [1];
       renderStageBadges();
       renderStageSelectors();
@@ -110,7 +183,7 @@ function init_flappy() {
     });
   }
 
-  // ── 2. Stage badges ─────────────────────────────────────────────
+  // ── 3. Stage badges ─────────────────────────────────────────────
 
   function renderStageBadges() {
     if (!stageBadgesRow) return;
@@ -119,8 +192,6 @@ function init_flappy() {
       var s = stages[sid];
       var isUnlocked = unlockedStages.indexOf(sid) !== -1;
       var isPassed = unlockedStages.indexOf(sid + 1) !== -1;
-      // Stage 5 has no "next" stage, so passed = in unlocked and we'd need leaderboard data
-      // For simplicity: if the next stage is unlocked, this one is passed
 
       var bgClass, textClass, icon;
       if (isPassed) {
@@ -145,52 +216,14 @@ function init_flappy() {
     }).join('');
   }
 
-  // ── 3. Architecture selector ────────────────────────────────────
-
-  function renderArchitectureSelector() {
-    if (!archSelector) return;
-    archSelector.innerHTML = architectures.map(function(arch) {
-      return '<option value="' + arch + '">' + arch + '</option>';
-    }).join('');
-    updateHyperparamInfo();
-  }
-
-  function updateHyperparamInfo() {
-    if (!hyperparamInfo || !archSelector) return;
-    var arch = archSelector.value;
-    var info = {
-      model1: { layers: '4 -> 64 -> 64 -> 2', activation: 'ReLU', params: '~4,674' },
-      model2: { layers: '4 -> 128 -> 128 -> 2', activation: 'ReLU', params: '~17,538' },
-      model3: { layers: '4 -> 256 -> 128 -> 64 -> 2', activation: 'ReLU', params: '~42,114' },
-    };
-    var d = info[arch] || { layers: '--', activation: '--', params: '--' };
-    hyperparamInfo.innerHTML =
-      '<div class="flex justify-between py-2 border-b border-outline-variant/30">' +
-        '<span class="text-xs text-on-surface-variant">Layers</span>' +
-        '<span class="text-xs font-mono font-semibold text-on-surface">' + d.layers + '</span>' +
-      '</div>' +
-      '<div class="flex justify-between py-2 border-b border-outline-variant/30">' +
-        '<span class="text-xs text-on-surface-variant">Activation</span>' +
-        '<span class="text-xs font-mono font-semibold text-on-surface">' + d.activation + '</span>' +
-      '</div>' +
-      '<div class="flex justify-between py-2">' +
-        '<span class="text-xs text-on-surface-variant">Parameters</span>' +
-        '<span class="text-xs font-mono font-semibold text-on-surface">' + d.params + '</span>' +
-      '</div>';
-  }
-
-  if (archSelector) {
-    archSelector.addEventListener('change', updateHyperparamInfo);
-  }
-
-  // ── Stage selectors ─────────────────────────────────────────────
+  // ── 4. Stage selectors ──────────────────────────────────────────
 
   function renderStageSelectors() {
     var stageIds = Object.keys(stages).map(Number).sort(function(a, b) { return a - b; });
 
-    // Submit stage select — only unlocked
-    if (submitStageSelect) {
-      submitStageSelect.innerHTML = stageIds.filter(function(sid) {
+    // Deploy stage select — only unlocked
+    if (stageSelect) {
+      stageSelect.innerHTML = stageIds.filter(function(sid) {
         return unlockedStages.indexOf(sid) !== -1;
       }).map(function(sid) {
         return '<option value="' + sid + '">Stage ' + sid + ' — ' + (stages[sid].label || '') + '</option>';
@@ -205,104 +238,173 @@ function init_flappy() {
     }
   }
 
-  // ── 4. Upload ───────────────────────────────────────────────────
+  // ── 5. Mode toggle ──────────────────────────────────────────────
 
-  if (uploadBtn) {
-    uploadBtn.addEventListener('click', function() {
-      if (!uploadStateDict || !uploadMetadata) return;
-
-      var sdFile = uploadStateDict.files && uploadStateDict.files[0];
-      var metaFile = uploadMetadata.files && uploadMetadata.files[0];
-
-      if (!sdFile || !metaFile) {
-        showUploadStatus('Please select both state_dict.pt and metadata.json files.', 'error');
-        return;
+  function setMode(mode) {
+    selectedMode = mode;
+    if (modePracticeBtn && modeLeaderboardBtn) {
+      if (mode === 'practice') {
+        modePracticeBtn.className = 'flex-1 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors bg-primary text-white';
+        modeLeaderboardBtn.className = 'flex-1 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high';
+      } else {
+        modePracticeBtn.className = 'flex-1 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high';
+        modeLeaderboardBtn.className = 'flex-1 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors bg-primary text-white';
       }
-
-      var formData = new FormData();
-      formData.append('state_dict', sdFile);
-      formData.append('metadata', metaFile);
-
-      uploadBtn.disabled = true;
-      uploadBtn.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">hourglass_top</span> Validating...';
-
-      fetch('/api/flappy/upload', {
-        method: 'POST',
-        headers: {
-          'X-Team-Id': teamId(),
-          'X-Team-Name': teamName(),
-        },
-        body: formData,
-      })
-      .then(function(resp) { return resp.json(); })
-      .then(function(json) {
-        uploadBtn.disabled = false;
-        uploadBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">upload_file</span> Upload & Validate';
-        if (json.ok) {
-          currentModelId = json.data.model_id;
-          showUploadStatus('Model validated successfully. Ready to submit.', 'success');
-        } else {
-          showUploadStatus(json.message || json.error || 'Validation failed.', 'error');
-        }
-      })
-      .catch(function(err) {
-        uploadBtn.disabled = false;
-        uploadBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">upload_file</span> Upload & Validate';
-        showUploadStatus('Upload failed: ' + err.message, 'error');
-      });
-    });
+    }
   }
 
-  function showUploadStatus(msg, type) {
-    if (!uploadStatus) return;
-    var color = type === 'success' ? 'text-emerald-600' : 'text-error';
-    var icon = type === 'success' ? 'check_circle' : 'error';
-    uploadStatus.innerHTML = '<div class="flex items-center gap-2 mt-2 ' + color + '">' +
-      '<span class="material-symbols-outlined text-[16px]">' + icon + '</span>' +
-      '<span class="text-xs font-medium">' + msg + '</span></div>';
+  if (modePracticeBtn) {
+    modePracticeBtn.addEventListener('click', function() { setMode('practice'); });
+  }
+  if (modeLeaderboardBtn) {
+    modeLeaderboardBtn.addEventListener('click', function() { setMode('leaderboard'); });
   }
 
-  // ── 5. Submit ───────────────────────────────────────────────────
+  // ── 6. Deploy ───────────────────────────────────────────────────
 
-  if (submitBtn) {
-    submitBtn.addEventListener('click', function() {
-      if (!currentModelId) {
-        showSubmitStatus('Upload and validate a model first.', 'error');
+  if (deployBtn) {
+    deployBtn.addEventListener('click', function() {
+      var tid = teamId();
+      if (!tid) {
+        showDeployStatus('No team ID. Please log in first.', 'error');
         return;
       }
-      if (!submitStageSelect) return;
-      var stageId = parseInt(submitStageSelect.value);
+      if (!modelStatus || !modelStatus.has_model) {
+        showDeployStatus('No classifier submitted. Go to the Classifier page first.', 'error');
+        return;
+      }
+      if (!stageSelect) return;
+      var stageId = parseInt(stageSelect.value);
 
-      submitBtn.disabled = true;
-      submitBtn.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">hourglass_top</span> Submitting...';
+      deployBtn.disabled = true;
+      deployBtn.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">hourglass_top</span> Deploying...';
 
-      API.post('/flappy/submit', {
-        team_name: teamName(),
-        model_id: currentModelId,
+      API.post('/flappy/play', {
+        team_id: tid,
         stage_id: stageId,
+        mode: selectedMode,
       }).then(function(data) {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">send</span> Submit to Stage';
-        showSubmitStatus('Submission saved for Stage ' + stageId + '.', 'success');
-        currentModelId = null;
+        deployBtn.disabled = false;
+        deployBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">smart_toy</span> Deploy My Classifier';
+        showDeployStatus('', '');
+
+        // Load replay
+        loadReplay(data);
+
+        // Show score summary
+        renderScoreSummary(data);
+
+        // Refresh unlocked
+        loadUnlockedStages();
       }).catch(function(err) {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">send</span> Submit to Stage';
-        showSubmitStatus('Submission failed: ' + err.message, 'error');
+        deployBtn.disabled = false;
+        deployBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">smart_toy</span> Deploy My Classifier';
+        showDeployStatus('Deploy failed: ' + err.message, 'error');
       });
     });
   }
 
-  function showSubmitStatus(msg, type) {
-    if (!submitStatus) return;
+  function showDeployStatus(msg, type) {
+    if (!deployStatus) return;
+    if (!msg) { deployStatus.innerHTML = ''; return; }
     var color = type === 'success' ? 'text-emerald-600' : 'text-error';
     var icon = type === 'success' ? 'check_circle' : 'error';
-    submitStatus.innerHTML = '<div class="flex items-center gap-2 mt-2 ' + color + '">' +
+    deployStatus.innerHTML = '<div class="flex items-center gap-2 mt-2 ' + color + '">' +
       '<span class="material-symbols-outlined text-[16px]">' + icon + '</span>' +
       '<span class="text-xs font-medium">' + msg + '</span></div>';
   }
 
-  // ── 6. Admin Race ───────────────────────────────────────────────
+  // ── 7. Score summary + Save to Leaderboard ──────────────────────
+
+  var lastPlayResult = null;
+
+  function renderScoreSummary(data) {
+    if (!scoreSummary) return;
+    lastPlayResult = data;
+    var s = data.summary || {};
+    var avgScore = s.avg_score != null ? s.avg_score : '--';
+    var maxScore = s.max_score != null ? s.max_score : '--';
+    var passed = s.passed;
+
+    var passedBadge = passed
+      ? '<span class="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full"><span class="material-symbols-outlined text-[14px]">check_circle</span>Passed</span>'
+      : '<span class="inline-flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 px-3 py-1 rounded-full"><span class="material-symbols-outlined text-[14px]">cancel</span>Not Passed</span>';
+
+    var saveBtn = '';
+    if (selectedMode === 'leaderboard') {
+      saveBtn = '<button id="flappy-save-lb-btn" class="w-full mt-4 bg-primary text-white rounded-full font-bold text-sm shadow-lg shadow-primary/20 py-2.5 flex items-center justify-center gap-2 hover:bg-primary-container transition-colors">' +
+        '<span class="material-symbols-outlined text-[18px]">leaderboard</span> Save to Leaderboard</button>' +
+        '<div id="flappy-save-lb-status"></div>';
+    }
+
+    scoreSummary.className = '';
+    scoreSummary.innerHTML =
+      '<div class="bg-surface-container-low rounded-2xl p-5">' +
+        '<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-3">Run Results</p>' +
+        '<div class="grid grid-cols-2 gap-3 mb-3">' +
+          '<div class="text-center p-3 bg-white rounded-xl border border-surface-container-high">' +
+            '<p class="text-2xl font-black text-on-background tracking-tighter">' + avgScore + '</p>' +
+            '<p class="text-[10px] text-on-surface-variant font-bold uppercase">Avg Score</p>' +
+          '</div>' +
+          '<div class="text-center p-3 bg-white rounded-xl border border-surface-container-high">' +
+            '<p class="text-2xl font-black text-on-background tracking-tighter">' + maxScore + '</p>' +
+            '<p class="text-[10px] text-on-surface-variant font-bold uppercase">Max Score</p>' +
+          '</div>' +
+        '</div>' +
+        '<div class="flex justify-center">' + passedBadge + '</div>' +
+        saveBtn +
+      '</div>';
+
+    // Wire save button
+    var saveLbBtn = document.getElementById('flappy-save-lb-btn');
+    if (saveLbBtn) {
+      saveLbBtn.addEventListener('click', function() {
+        saveToLeaderboard();
+      });
+    }
+  }
+
+  function saveToLeaderboard() {
+    if (!lastPlayResult || !lastPlayResult.summary) return;
+    var s = lastPlayResult.summary;
+    var saveLbBtn = document.getElementById('flappy-save-lb-btn');
+    var saveLbStatus = document.getElementById('flappy-save-lb-status');
+
+    if (saveLbBtn) {
+      saveLbBtn.disabled = true;
+      saveLbBtn.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">hourglass_top</span> Saving...';
+    }
+
+    API.post('/flappy/save-result', {
+      team_id: teamId(),
+      team_name: teamName(),
+      stage_id: lastPlayResult.stage_id,
+      avg_score: s.avg_score,
+      max_score: s.max_score,
+      episode_scores: s.scores || [],
+      passed: s.passed,
+    }).then(function() {
+      if (saveLbBtn) {
+        saveLbBtn.disabled = true;
+        saveLbBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">check_circle</span> Saved';
+        saveLbBtn.className = saveLbBtn.className.replace('bg-primary', 'bg-emerald-600').replace('shadow-primary/20', 'shadow-emerald-600/20');
+      }
+      if (saveLbStatus) {
+        saveLbStatus.innerHTML = '<p class="text-xs text-emerald-600 font-medium mt-2 text-center">Result saved to leaderboard!</p>';
+      }
+      fetchLeaderboard();
+    }).catch(function(err) {
+      if (saveLbBtn) {
+        saveLbBtn.disabled = false;
+        saveLbBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">leaderboard</span> Save to Leaderboard';
+      }
+      if (saveLbStatus) {
+        saveLbStatus.innerHTML = '<p class="text-xs text-error font-medium mt-2 text-center">Save failed: ' + err.message + '</p>';
+      }
+    });
+  }
+
+  // ── 8. Admin Race ───────────────────────────────────────────────
 
   if (raceBtn) {
     raceBtn.addEventListener('click', function() {
@@ -351,7 +453,7 @@ function init_flappy() {
       '<span class="text-xs font-medium">' + msg + '</span></div>';
   }
 
-  // ── 7. Canvas Replay Viewer ─────────────────────────────────────
+  // ── 9. Canvas Replay Viewer ─────────────────────────────────────
 
   function resizeCanvas() {
     if (!canvasContainer || !canvas) return;
@@ -379,21 +481,6 @@ function init_flappy() {
     WORLD_W = replay.world_width || 420;
     WORLD_H = replay.world_height || 580;
     GROUND_H = replay.ground_height || 60;
-
-    // Build team color map
-    teamColorMap = {};
-    for (var ei = 0; ei < replay.episodes.length; ei++) {
-      var ep = replay.episodes[ei];
-      if (ep.frames && ep.frames.length > 0) {
-        var birds = ep.frames[0].birds || [];
-        for (var bi = 0; bi < birds.length; bi++) {
-          var name = birds[bi].team_name;
-          if (!(name in teamColorMap)) {
-            teamColorMap[name] = TEAM_COLORS[Object.keys(teamColorMap).length % TEAM_COLORS.length];
-          }
-        }
-      }
-    }
 
     resizeCanvas();
     if (btnPlay) btnPlay.textContent = 'Pause';
@@ -454,12 +541,12 @@ function init_flappy() {
     ctx.fillRect(sx - 3, bottomPipeTop, sw + 6, capH);
   }
 
-  function drawBirdAtX(bird, worldX, showCrown, totalTeams) {
-    var bx = worldX * SCALE_X;
-    var by = bird.y * SCALE_Y;
+  function drawBird(birdY, alive, score) {
+    var bx = 60 * SCALE_X;
+    var by = birdY * SCALE_Y;
     var radius = 12;
-    var color = teamColorMap[bird.team_name] || '#ffffff';
-    var alpha = bird.alive ? 1.0 : 0.4;
+    var color = TEAM_COLORS[0];
+    var alpha = alive ? 1.0 : 0.4;
 
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -484,7 +571,7 @@ function init_flappy() {
     ctx.fill();
 
     // Dead marker
-    if (!bird.alive) {
+    if (!alive) {
       ctx.strokeStyle = '#ef4444';
       ctx.lineWidth = 3;
       ctx.lineCap = 'round';
@@ -500,21 +587,16 @@ function init_flappy() {
     }
 
     // Team name
+    var name = teamName();
     ctx.font = '600 10px Inter, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillStyle = color;
-    ctx.fillText(bird.team_name, bx, by - radius - 14);
-
-    // Crown
-    if (showCrown) {
-      ctx.font = '14px sans-serif';
-      ctx.fillText('\uD83D\uDC51', bx, by - radius - 26);
-    }
+    ctx.fillText(name, bx, by - radius - 14);
 
     // Score
     ctx.font = '500 10px Inter, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.fillText('Score: ' + bird.score, bx, by + radius + 14);
+    ctx.fillText('Score: ' + score, bx, by + radius + 14);
 
     ctx.restore();
   }
@@ -539,43 +621,22 @@ function init_flappy() {
 
     drawGround();
 
-    // Birds
-    var birds = frame.birds || [];
-    var aliveCount = 0;
-    var totalTeams = birds.length;
-    for (var ai = 0; ai < birds.length; ai++) {
-      if (birds[ai].alive) aliveCount++;
-    }
-    var isLastSurvivor = (aliveCount === 1 && totalTeams > 1);
-
-    var birdSpacing = (totalTeams > 1) ? Math.min(30, 120 / (totalTeams - 1)) : 0;
-    var birdBaseX = 60;
-    for (var bi = 0; bi < birds.length; bi++) {
-      var b = birds[bi];
-      var offsetX = (bi - (totalTeams - 1) / 2) * birdSpacing;
-      drawBirdAtX(b, birdBaseX + offsetX, b.alive && isLastSurvivor, totalTeams);
-    }
+    // Single bird (RF deploy format)
+    drawBird(frame.bird_y, frame.alive, frame.score);
 
     // Update overlay
-    updateOverlay(frame);
+    updateOverlay(frame, ep);
   }
 
-  function updateOverlay(frame) {
-    var gapSize = replayData.gap_size || '--';
+  function updateOverlay(frame, ep) {
     var stageId = replayData.stage_id != null ? replayData.stage_id : '--';
-    var ep = currentEpisode();
     var totalFrames = ep ? ep.frames.length - 1 : 0;
     var totalEpisodes = replayData.episodes ? replayData.episodes.length : 0;
 
     if (overlayStage) overlayStage.textContent = stageId;
-    if (overlayGap) overlayGap.textContent = gapSize + 'px';
     if (overlayEpisode) overlayEpisode.textContent = (episodeIdx + 1) + ' / ' + totalEpisodes;
     if (overlayFrame) overlayFrame.textContent = frameIdx + ' / ' + totalFrames;
-
-    var alive = 0;
-    var birds = frame.birds || [];
-    for (var i = 0; i < birds.length; i++) { if (birds[i].alive) alive++; }
-    if (overlayAlive) overlayAlive.textContent = alive + ' / ' + birds.length;
+    if (overlayScore) overlayScore.textContent = frame.score;
   }
 
   function tick() {
@@ -645,13 +706,13 @@ function init_flappy() {
     ctx.fillStyle = '#64748b';
     ctx.font = '500 14px Inter, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Run an Admin Race to see replay here', CANVAS_W / 2, CANVAS_H / 2 - 10);
+    ctx.fillText('Deploy your classifier to see replay here', CANVAS_W / 2, CANVAS_H / 2 - 10);
     ctx.font = '400 12px Inter, sans-serif';
     ctx.fillStyle = '#475569';
-    ctx.fillText('Upload a model, submit to a stage, then race', CANVAS_W / 2, CANVAS_H / 2 + 14);
+    ctx.fillText('Select a stage, choose a mode, and click Deploy', CANVAS_W / 2, CANVAS_H / 2 + 14);
   }
 
-  // ── 8. Leaderboard ──────────────────────────────────────────────
+  // ── 10. Leaderboard ─────────────────────────────────────────────
 
   function renderLeaderboardTabs() {
     if (!lbTabsContainer) return;
@@ -734,5 +795,6 @@ function init_flappy() {
 
   // ── Init ────────────────────────────────────────────────────────
   drawIdleCanvas();
-  loadStagesAndArchitectures();
+  checkModelStatus();
+  loadStages();
 }

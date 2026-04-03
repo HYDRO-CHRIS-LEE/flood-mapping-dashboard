@@ -78,6 +78,7 @@ function init_classifier() {
     }
 
     const formData = {
+      team_id: localStorage.getItem('earthai_team_id') || '',
       features: selectedFeatures,
       n_trees: parseInt(treesSlider.value),
       max_depth: parseInt(depthSlider.value),

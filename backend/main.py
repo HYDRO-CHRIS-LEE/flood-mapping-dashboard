@@ -14,6 +14,9 @@ from backend.db import init_db
 from backend.routers.events import router as events_router
 from backend.routers.optical import router as optical_router
 from backend.routers.rainfall import router as rainfall_router
+from backend.routers.sar import router as sar_router
+from backend.routers.classifier import router as classifier_router
+from backend.routers.leaderboard import router as leaderboard_router
 
 
 @asynccontextmanager
@@ -38,6 +41,9 @@ app.add_middleware(
 app.include_router(events_router)
 app.include_router(rainfall_router)
 app.include_router(optical_router)
+app.include_router(sar_router)
+app.include_router(classifier_router)
+app.include_router(leaderboard_router)
 
 
 # ── Custom error handler ────────────────────────────────────────

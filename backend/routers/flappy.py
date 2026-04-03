@@ -1,43 +1,23 @@
-"""
-Flappy Bird API router — model upload, submission, race execution.
-"""
+"""Flappy Bird API — RF classifier-based gameplay."""
 
 from __future__ import annotations
 
-import json
-import uuid
-
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from backend.services.flappy_engine import (
-    ALLOWED_ARCHITECTURES,
-    execute_race,
-    get_stages,
-    get_unlocked_stages,
-    submit_model,
-    validate_upload,
+from backend.services.rf_game_engine import (
+    STAGES,
+    get_model_status,
+    run_rf_game,
 )
+from backend.services.flappy_engine import (
+    get_unlocked_stages,
+    execute_race,
+    FLAPPY_LB_PATH,
+)
+from utils.flappy_leaderboard import add_entry as lb_add
 
 router = APIRouter(prefix="/api/flappy", tags=["flappy"])
-
-# In-memory staging area for validated (but not yet submitted) models.
-# Keys are UUID strings, values are (state_dict_bytes, metadata_dict).
-_model_store: dict[str, tuple[bytes, dict]] = {}
-
-
-# ── Request bodies ──────────────────────────────────────────────────
-
-
-class SubmitBody(BaseModel):
-    team_name: str
-    model_id: str
-    stage_id: int
-
-
-class RaceBody(BaseModel):
-    stage_id: int
-    admin_password: str
 
 
 # ── Endpoints ───────────────────────────────────────────────────────
@@ -45,90 +25,104 @@ class RaceBody(BaseModel):
 
 @router.get("/stages")
 def stages():
-    """Return stage definitions and allowed architectures."""
-    return {
-        "ok": True,
-        "data": {
-            "stages": get_stages(),
-            "architectures": sorted(ALLOWED_ARCHITECTURES),
-        },
-    }
+    """Return stage definitions."""
+    stage_data = {}
+    for sid, s in STAGES.items():
+        stage_data[sid] = {"label": s["label"], "pass_avg": s["pass_avg"]}
+    return {"ok": True, "data": {"stages": stage_data}}
 
 
-@router.get("/unlocked/{team_name}")
-def unlocked(team_name: str):
-    """Return the stage IDs unlocked by *team_name*."""
-    return {"ok": True, "data": get_unlocked_stages(team_name)}
+@router.get("/model-status/{team_id}")
+def model_status(team_id: str):
+    """Check if a team has a persisted RF model."""
+    status = get_model_status(team_id)
+    return {"ok": True, "data": status}
 
 
-@router.post("/upload")
-async def upload(
-    state_dict: UploadFile = File(...),
-    metadata: UploadFile = File(...),
-):
-    """Upload and validate a model state_dict + metadata JSON.
+@router.get("/unlocked/{team_id}")
+def unlocked(team_id: str):
+    """Return the stage IDs unlocked by *team_id*."""
+    return {"ok": True, "data": get_unlocked_stages(team_id)}
 
-    Stores the validated artefacts in memory so that a subsequent
-    ``/submit`` call can persist them to disk.
-    """
-    # Validate file extensions
-    if not (state_dict.filename or "").endswith(".pt"):
-        raise HTTPException(status_code=400, detail="state_dict must be a .pt file")
-    if not (metadata.filename or "").endswith(".json"):
-        raise HTTPException(status_code=400, detail="metadata must be a .json file")
 
-    sd_bytes = await state_dict.read()
-    meta_bytes = await metadata.read()
+# ── Request bodies ──────────────────────────────────────────────────
 
+
+class PlayRequest(BaseModel):
+    team_id: str
+    stage_id: int
+    mode: str = "practice"  # "practice" or "leaderboard"
+
+
+class SaveResultRequest(BaseModel):
+    team_id: str
+    team_name: str
+    stage_id: int
+    avg_score: float
+    max_score: int
+    episode_scores: list[float]
+    passed: bool
+
+
+class RaceBody(BaseModel):
+    stage_id: int
+    admin_password: str
+
+
+# ── Play / Save / Race ─────────────────────────────────────────────
+
+
+@router.post("/play")
+def play(body: PlayRequest):
+    """Run an RF-based game session (10 episodes)."""
     try:
-        meta_dict = json.loads(meta_bytes)
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid metadata JSON: {exc}")
-
-    model, _meta, err = validate_upload(sd_bytes, meta_dict)
-    if err:
-        return {"ok": False, "error": "VALIDATION_FAILED", "message": err}
-
-    model_id = str(uuid.uuid4())
-    _model_store[model_id] = (sd_bytes, meta_dict)
-
-    return {"ok": True, "data": {"model_id": model_id, "message": "Model validated"}}
+        result = run_rf_game(body.team_id, body.stage_id, body.mode)
+    except ValueError as e:
+        parts = str(e).split("|", 1)
+        code = parts[0] if len(parts) == 2 else "GAME_ERROR"
+        msg = parts[1] if len(parts) == 2 else str(e)
+        status = 404 if code == "MODEL_NOT_FOUND" else 400
+        raise HTTPException(status_code=status, detail={
+            "ok": False, "error": code, "message": msg,
+        })
+    return {"ok": True, "data": result}
 
 
-@router.post("/submit")
-def submit(body: SubmitBody):
-    """Persist a previously-uploaded model to the submission store."""
-    entry = _model_store.pop(body.model_id, None)
-    if entry is None:
-        raise HTTPException(
-            status_code=404,
-            detail="model_id not found — upload first via /api/flappy/upload",
+@router.post("/save-result")
+def save_result(body: SaveResultRequest):
+    """Save a game result to the leaderboard."""
+    try:
+        lb_add(
+            FLAPPY_LB_PATH,
+            team_name=body.team_name,
+            stage_id=body.stage_id,
+            avg_score=body.avg_score,
+            max_score=body.max_score,
+            survival_steps_avg=0,
+            episode_scores=body.episode_scores,
+            passed=body.passed,
+            race_id="",
+            submission_timestamp="",
         )
-
-    sd_bytes, meta_dict = entry
-    team_dir = submit_model(body.team_name, body.stage_id, sd_bytes, meta_dict)
-
-    return {
-        "ok": True,
-        "data": {
-            "team_name": body.team_name,
-            "stage_id": body.stage_id,
-            "team_dir": team_dir,
-            "message": "Submission saved",
-        },
-    }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail={
+            "ok": False, "error": "LEADERBOARD_SAVE_FAILED", "message": str(exc),
+        })
+    return {"ok": True, "data": {"message": "Result saved to leaderboard"}}
 
 
 @router.post("/race")
 def race(body: RaceBody):
     """Run a race for all submissions on the given stage (admin-only)."""
     result, err = execute_race(body.stage_id, body.admin_password)
-
     if err:
         if "password" in err.lower():
-            raise HTTPException(status_code=403, detail=err)
-        return {"ok": False, "error": "RACE_FAILED", "message": err}
-
+            raise HTTPException(status_code=403, detail={
+                "ok": False, "error": "INVALID_PASSWORD", "message": err,
+            })
+        raise HTTPException(status_code=400, detail={
+            "ok": False, "error": "RACE_FAILED", "message": err,
+        })
     return {
         "ok": True,
         "data": {

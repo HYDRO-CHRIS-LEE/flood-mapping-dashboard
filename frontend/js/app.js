@@ -1,0 +1,1 @@
+// EarthAI frontend application

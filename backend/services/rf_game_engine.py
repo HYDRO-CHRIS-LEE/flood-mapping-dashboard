@@ -72,6 +72,9 @@ def get_model_status(team_id: str) -> dict:
         "features": artifact.get("features", []),
         "f1": artifact.get("metrics", {}).get("f1", 0),
         "accuracy": artifact.get("metrics", {}).get("accuracy", 0),
+        "precision": artifact.get("metrics", {}).get("precision", 0),
+        "recall": artifact.get("metrics", {}).get("recall", 0),
+        "hyperparameters": artifact.get("hyperparameters", {}),
         "trained_at": artifact.get("created_at", ""),
     }
 
@@ -178,29 +181,18 @@ def _run_episode(
 
         if correct:
             total_correct += 1
-            # Safe trajectory: bird moves toward gap center
-            target_y = gap_y
-            n_frames = 30  # frames to reach next pipe
+            # Safe trajectory: smooth lerp toward gap center
+            start_y = bird_y
+            target_y = float(gap_y)
+            n_frames = 30
             for f in range(n_frames):
-                # Simple proportional control toward target
-                diff = target_y - bird_y
-                if diff > 5:
-                    bird_vel = max(bird_vel + GRAVITY, FLAP_VELOCITY)
-                    action = 0  # don't flap (fall toward gap below)
-                    if bird_y > target_y:
-                        bird_vel = FLAP_VELOCITY
-                        action = 1
-                elif diff < -5:
-                    bird_vel = FLAP_VELOCITY
-                    action = 1  # flap up toward gap above
-                else:
-                    bird_vel += GRAVITY * 0.3
-                    action = 0
-
-                bird_vel += GRAVITY
-                bird_vel = max(min(bird_vel, 10), -10)
-                bird_y += bird_vel
+                # Smooth ease-in-out interpolation
+                t = (f + 1) / n_frames
+                # Cubic ease: slow start, fast middle, slow end
+                t_smooth = t * t * (3.0 - 2.0 * t)
+                bird_y = start_y + (target_y - start_y) * t_smooth
                 bird_y = max(0, min(bird_y, PLAYABLE_HEIGHT))
+                action = 1 if target_y < start_y else 0
 
                 pipe_x = PIPE_SPACING_X - (f * PIPE_SPACING_X / n_frames)
                 frames.append({
@@ -212,6 +204,8 @@ def _run_episode(
                     "pipes": [{"x": round(pipe_x, 1), "gap_y": gap_y, "gap_size": GAP_SIZE}],
                 })
 
+            bird_y = target_y
+            bird_vel = 0.0
             score += 1
         else:
             # Fail trajectory: bird drifts and crashes

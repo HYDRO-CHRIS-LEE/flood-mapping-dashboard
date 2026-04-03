@@ -41,8 +41,8 @@ def model_status(team_id: str):
 
 @router.get("/unlocked/{team_id}")
 def unlocked(team_id: str):
-    """Return the stage IDs unlocked by *team_id*."""
-    return {"ok": True, "data": get_unlocked_stages(team_id)}
+    """Return all stage IDs — all stages are available once a model is submitted."""
+    return {"ok": True, "data": sorted(STAGES.keys())}
 
 
 # ── Request bodies ──────────────────────────────────────────────────

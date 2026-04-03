@@ -106,21 +106,52 @@ function init_flappy() {
       ? features.slice(0, 5).join(', ') + ' + ' + (features.length - 5) + ' more'
       : features.join(', ');
 
+    var hp = data.hyperparameters || {};
+    var precPct = Math.round((data.precision || 0) * 100);
+    var recPct = Math.round((data.recall || 0) * 100);
+
     modelStatusEl.className = 'bg-surface-container-lowest rounded-[2rem] p-8';
     modelStatusEl.innerHTML =
-      '<div class="flex items-center justify-between">' +
-        '<div class="flex items-center gap-4">' +
-          '<div class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600">' +
-            '<span class="material-symbols-outlined text-2xl">check_circle</span>' +
-          '</div>' +
-          '<div>' +
-            '<p class="text-lg font-bold text-on-background negative-tracking">Your Classifier</p>' +
-            '<p class="text-sm text-on-surface-variant mt-0.5">F1 <span class="font-black text-emerald-600">' + f1Pct + '%</span> &middot; Accuracy <span class="font-bold">' + accPct + '%</span></p>' +
-          '</div>' +
+      '<div class="flex items-center gap-4 mb-6">' +
+        '<div class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600">' +
+          '<span class="material-symbols-outlined text-2xl">check_circle</span>' +
         '</div>' +
-        '<div class="text-right">' +
-          '<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-1">Features</p>' +
-          '<p class="text-xs text-on-surface font-medium max-w-xs">' + featureStr + '</p>' +
+        '<div>' +
+          '<p class="text-lg font-bold text-on-background negative-tracking">Your Submitted Classifier</p>' +
+          '<p class="text-sm text-on-surface-variant mt-0.5">Ready to deploy as Flappy Bird agent</p>' +
+        '</div>' +
+      '</div>' +
+      '<div class="grid grid-cols-4 gap-4 mb-6">' +
+        '<div class="bg-surface-container-low rounded-2xl p-4 text-center">' +
+          '<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-1">F1 Score</p>' +
+          '<p class="text-2xl font-black text-emerald-600">' + f1Pct + '%</p>' +
+        '</div>' +
+        '<div class="bg-surface-container-low rounded-2xl p-4 text-center">' +
+          '<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-1">Accuracy</p>' +
+          '<p class="text-2xl font-black text-on-surface">' + accPct + '%</p>' +
+        '</div>' +
+        '<div class="bg-surface-container-low rounded-2xl p-4 text-center">' +
+          '<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-1">Precision</p>' +
+          '<p class="text-2xl font-black text-on-surface">' + precPct + '%</p>' +
+        '</div>' +
+        '<div class="bg-surface-container-low rounded-2xl p-4 text-center">' +
+          '<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-1">Recall</p>' +
+          '<p class="text-2xl font-black text-on-surface">' + recPct + '%</p>' +
+        '</div>' +
+      '</div>' +
+      '<div class="grid grid-cols-2 gap-4">' +
+        '<div class="bg-surface-container-low rounded-2xl p-4">' +
+          '<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">Features</p>' +
+          '<p class="text-sm text-on-surface font-medium">' + featureStr + '</p>' +
+        '</div>' +
+        '<div class="bg-surface-container-low rounded-2xl p-4">' +
+          '<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">Model Config</p>' +
+          '<p class="text-xs text-on-surface-variant leading-relaxed">' +
+            (hp.n_trees ? 'Trees: <b>' + hp.n_trees + '</b>' : '') +
+            (hp.max_depth ? ' &middot; Depth: <b>' + hp.max_depth + '</b>' : '') +
+            (hp.scaling && hp.scaling !== 'none' ? ' &middot; Scaling: <b>' + hp.scaling + '</b>' : '') +
+            (hp.balance && hp.balance !== 'none' ? ' &middot; Balance: <b>' + hp.balance + '</b>' : '') +
+          '</p>' +
         '</div>' +
       '</div>';
   }

@@ -145,10 +145,10 @@ def train_rf(
     sample_pct: int = 100,
     outlier_method: str = "none",
     seed: int = 42,
-) -> tuple[dict | None, dict | None]:
+) -> tuple[dict | None, dict | None, RandomForestClassifier | None, StandardScaler | MinMaxScaler | None]:
     """
     Full RF pipeline: preprocess, split, balance, scale, train, evaluate.
-    Returns (metrics_dict, importance_dict) or (None, None) on failure.
+    Returns (metrics_dict, importance_dict, clf, scaler) or (None, None, None, None) on failure.
     """
     # Drop columns not needed and remove NaNs
     keep_cols = [c for c in df.columns if c in features + ["label", "event"]]
@@ -157,7 +157,7 @@ def train_rf(
     # Validate and normalize
     valid_df, _ = validate_events(df)
     if len(valid_df) == 0:
-        return None, None
+        return None, None, None, None
     df = normalize_by_event(valid_df)
 
     # Preprocessing (sampling + outliers)
@@ -166,7 +166,7 @@ def train_rf(
     # Split
     train_df, test_df = event_based_split(df, held_out_events)
     if len(train_df) == 0 or len(test_df) == 0:
-        return None, None
+        return None, None, None, None
 
     # Class balance (training set only)
     train_df = apply_class_balance(train_df, balance, seed)
@@ -215,7 +215,7 @@ def train_rf(
         "cm": cm.tolist(),
     }
     importance = {f: float(v) for f, v in zip(features, clf.feature_importances_)}
-    return metrics, importance
+    return metrics, importance, clf, scaler
 
 
 # ── Coaching hints ────────────────────────────────────────────────

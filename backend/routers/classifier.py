@@ -3,8 +3,10 @@ AI Flood Classifier API router — Random Forest training and submission.
 """
 
 import json
+import os
 from datetime import datetime, timezone
 
+import joblib
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -20,6 +22,10 @@ from backend.services.rf_engine import (
 )
 
 router = APIRouter(prefix="/api/classifier", tags=["classifier"])
+
+# Temporary in-memory store for trained models (persisted on submit)
+_trained_models: dict[str, dict] = {}
+MODELS_DIR = os.path.join(DATA_ROOT, "rf_models")
 
 
 # ── Feature metadata ──────────────────────────────────────────────
@@ -58,6 +64,7 @@ def get_features():
 # ── Train ─────────────────────────────────────────────────────────
 
 class TrainRequest(BaseModel):
+    team_id: str = ""  # optional, used for model storage
     features: list[str]
     n_trees: int = 100
     max_depth: int = 5
@@ -92,7 +99,6 @@ def train_classifier(body: TrainRequest):
 
     # Discover events that have data
     available_events = []
-    import os
     for key in ALL_EVENTS:
         d = os.path.join(DATA_ROOT, key)
         if os.path.isdir(d) and os.path.isfile(os.path.join(d, "RF_training_samples.csv")):
@@ -115,7 +121,7 @@ def train_classifier(body: TrainRequest):
                     "message": "No held-out test events have training data."},
         )
 
-    metrics, importance = train_rf(
+    metrics, importance, model_obj, scaler_obj = train_rf(
         raw_df,
         body.features,
         body.n_trees,
@@ -137,6 +143,25 @@ def train_classifier(body: TrainRequest):
             detail={"ok": False, "error": "TRAIN_FAILED",
                     "message": "Training failed — not enough data after preprocessing."},
         )
+
+    if body.team_id:
+        _trained_models[body.team_id] = {
+            "model": model_obj,
+            "scaler": scaler_obj,
+            "features": body.features,
+            "hyperparameters": {
+                "n_trees": body.n_trees,
+                "max_depth": body.max_depth,
+                "min_samples_leaf": body.min_samples_leaf,
+                "max_features": body.max_features,
+                "bootstrap": body.bootstrap,
+                "class_weight": body.class_weight,
+                "scaling": body.scaling,
+                "balance": body.balance,
+                "sample_pct": body.sample_pct,
+                "outlier": body.outlier,
+            },
+        }
 
     hints = generate_hints(metrics, body.features, body.n_trees)
 
@@ -208,6 +233,32 @@ def submit_to_leaderboard(body: SubmitRequest):
             ),
         )
         conn.commit()
+
+        # Persist model artifact to disk
+        trained = _trained_models.get(body.team_id)
+        if trained:
+            team_dir = os.path.join(MODELS_DIR, body.team_id)
+            os.makedirs(team_dir, exist_ok=True)
+            artifact = {
+                "model": trained["model"],
+                "features": trained["features"],
+                "scaler": trained["scaler"],
+                "hyperparameters": trained["hyperparameters"],
+                "metrics": {
+                    "f1": body.f1,
+                    "accuracy": body.accuracy,
+                    "precision": body.precision_val,
+                    "recall": body.recall,
+                },
+                "held_out_events": HELD_OUT_EVENTS,
+                "class_labels": {0: "non-flood", 1: "flood"},
+                "artifact_version": "rf_artifact_v1",
+                "team_id": body.team_id,
+                "team_name": body.team_name,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            joblib.dump(artifact, os.path.join(team_dir, "model_artifact.pkl"))
+            _trained_models.pop(body.team_id, None)
     finally:
         conn.close()
 

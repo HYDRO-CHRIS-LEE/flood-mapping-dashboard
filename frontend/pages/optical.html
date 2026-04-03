@@ -1,12 +1,88 @@
+<!-- Temporal Analysis Canvas page fragment -->
 <section class="mb-8">
-  <p class="mb-1 text-xs font-semibold uppercase tracking-widest text-primary">Intelligence Suite</p>
-  <h1 class="text-5xl font-black negative-tracking text-on-background">Temporal Analysis Canvas</h1>
+  <p class="text-secondary font-semibold text-sm tracking-widest uppercase mb-1">Intelligence Suite</p>
+  <h1 class="text-5xl font-black negative-tracking text-on-surface">Temporal Analysis Canvas</h1>
   <p class="mt-2 text-base text-on-surface-variant">Multispectral satellite imagery analysis for temporal water detection.</p>
 </section>
 
-<div class="rounded-2xl border border-outline-variant bg-surface-container-lowest p-8">
-  <div class="flex items-center gap-3 text-on-surface-variant">
-    <span class="material-symbols-outlined text-3xl text-outline">visibility</span>
-    <p class="text-sm">Optical page &mdash; Phase 2</p>
+<!-- Event selector row -->
+<div class="flex flex-wrap items-center gap-4 mb-6">
+  <div class="flex items-center gap-3">
+    <label for="event-select" class="text-sm font-semibold text-on-surface-variant">Event</label>
+    <select id="event-select" class="h-10 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 text-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary min-w-[240px]">
+      <option value="" disabled selected>Select an event...</option>
+    </select>
   </div>
 </div>
+
+<!-- Bento grid -->
+<div class="grid grid-cols-12 gap-4">
+
+  <!-- Map: col 8 -->
+  <div class="col-span-12 lg:col-span-8 bg-surface-container-lowest rounded-[2rem] p-4 overflow-hidden">
+    <div id="optical-map" style="height:500px;border-radius:1.5rem;"></div>
+  </div>
+
+  <!-- Right sidebar: col 4 -->
+  <div class="col-span-12 lg:col-span-4 flex flex-col gap-4">
+
+    <!-- Layer selector -->
+    <div class="bg-surface-container-lowest rounded-[2rem] p-8">
+      <p class="text-secondary font-bold text-sm uppercase tracking-widest mb-4">Layer</p>
+      <div class="space-y-3">
+        <label class="flex items-center gap-3 rounded-xl p-3 bg-surface-container-low cursor-pointer hover:bg-surface-container-high transition-colors">
+          <input type="radio" name="optical-layer" value="RGB" checked class="accent-primary" />
+          <div>
+            <p class="text-sm font-semibold text-on-surface">RGB</p>
+            <p class="text-xs text-on-surface-variant">True color composite</p>
+          </div>
+        </label>
+        <label class="flex items-center gap-3 rounded-xl p-3 bg-surface-container-low cursor-pointer hover:bg-surface-container-high transition-colors">
+          <input type="radio" name="optical-layer" value="NDWI" class="accent-primary" />
+          <div>
+            <p class="text-sm font-semibold text-on-surface">NDWI</p>
+            <p class="text-xs text-on-surface-variant">Water index heatmap</p>
+          </div>
+        </label>
+        <label class="flex items-center gap-3 rounded-xl p-3 bg-surface-container-low cursor-pointer hover:bg-surface-container-high transition-colors">
+          <input type="radio" name="optical-layer" value="NDWI_change" class="accent-primary" />
+          <div>
+            <p class="text-sm font-semibold text-on-surface">NDWI Change</p>
+            <p class="text-xs text-on-surface-variant">Temporal difference map</p>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Period toggle -->
+    <div id="period-group" class="bg-surface-container-lowest rounded-[2rem] p-8">
+      <p class="text-secondary font-bold text-sm uppercase tracking-widest mb-4">Period</p>
+      <div class="space-y-3">
+        <label class="flex items-center gap-3 rounded-xl p-3 bg-surface-container-low cursor-pointer hover:bg-surface-container-high transition-colors">
+          <input type="radio" name="optical-period" value="before" checked class="accent-primary" />
+          <div>
+            <p class="text-sm font-semibold text-on-surface">Before</p>
+            <p class="text-xs text-on-surface-variant">Pre-flood baseline</p>
+          </div>
+        </label>
+        <label class="flex items-center gap-3 rounded-xl p-3 bg-surface-container-low cursor-pointer hover:bg-surface-container-high transition-colors">
+          <input type="radio" name="optical-period" value="after" class="accent-primary" />
+          <div>
+            <p class="text-sm font-semibold text-on-surface">After</p>
+            <p class="text-xs text-on-surface-variant">Post-flood capture</p>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Spectral confidence card -->
+    <div class="bg-primary rounded-[2rem] p-8 text-white flex flex-col justify-center">
+      <p class="text-white/70 font-bold text-sm uppercase tracking-widest mb-2">Spectral Confidence</p>
+      <p class="text-6xl font-black negative-tracking leading-none">98.2<span class="text-2xl font-bold ml-1">%</span></p>
+      <p class="text-white/70 text-sm mt-2">Sentinel-2 L2A cloud-free</p>
+    </div>
+
+  </div>
+</div>
+
+<script src="/js/optical.js"></script>

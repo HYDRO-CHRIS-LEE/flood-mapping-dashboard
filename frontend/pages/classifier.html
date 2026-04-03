@@ -1,12 +1,169 @@
+<!-- AI Flood Classifier page fragment -->
 <section class="mb-8">
-  <p class="mb-1 text-xs font-semibold uppercase tracking-widest text-primary">Classifier Engine</p>
+  <p class="text-[10px] font-bold text-secondary uppercase tracking-widest mb-1">Classifier Engine</p>
   <h1 class="text-5xl font-black negative-tracking text-on-background">AI Flood Classifier</h1>
-  <p class="mt-2 text-base text-on-surface-variant">Multimodal spatial-temporal segmentation workbench.</p>
+  <p class="mt-2 text-base text-on-surface-variant">Multimodal spatial-temporal segmentation workbench &mdash; train, evaluate, and compete.</p>
 </section>
 
-<div class="rounded-2xl border border-outline-variant bg-surface-container-lowest p-8">
-  <div class="flex items-center gap-3 text-on-surface-variant">
-    <span class="material-symbols-outlined text-3xl text-outline">psychology</span>
-    <p class="text-sm">Classifier page &mdash; Phase 3</p>
+<!-- Bento grid -->
+<div class="grid grid-cols-12 gap-4">
+
+  <!-- Configuration panel: col 4 -->
+  <div class="col-span-12 lg:col-span-4 bg-surface-container-lowest rounded-[2rem] p-8">
+    <p class="text-xl font-bold negative-tracking mb-6">Configuration</p>
+
+    <!-- Feature selection -->
+    <div class="mb-6">
+      <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-3">Features</p>
+      <div id="clf-feature-list" class="space-y-2">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <!-- Preprocessing -->
+    <div class="mb-6">
+      <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-3">Preprocessing</p>
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs font-semibold text-on-surface-variant mb-1 block">Scaling</label>
+          <select id="clf-scaling" class="w-full bg-surface-container-low border-none rounded-xl text-sm py-3 px-4">
+            <option value="none">None</option>
+            <option value="standard">Standard Scaler</option>
+            <option value="minmax">Min-Max Scaler</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-on-surface-variant mb-1 block">Outlier Removal</label>
+          <select id="clf-outlier" class="w-full bg-surface-container-low border-none rounded-xl text-sm py-3 px-4">
+            <option value="none">None</option>
+            <option value="IQR method">IQR Method</option>
+            <option value="Z-score (>3s)">Z-Score (&gt;3&sigma;)</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-on-surface-variant mb-1 block">Class Balance</label>
+          <select id="clf-balance" class="w-full bg-surface-container-low border-none rounded-xl text-sm py-3 px-4">
+            <option value="none">None</option>
+            <option value="oversample">Oversample Minority</option>
+            <option value="undersample">Undersample Majority</option>
+          </select>
+        </div>
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="text-xs font-semibold text-on-surface-variant">Sample %</label>
+            <span id="clf-sample-val" class="text-xs font-bold text-primary">100%</span>
+          </div>
+          <input id="clf-sample-pct" type="range" min="10" max="100" step="5" value="100" class="w-full accent-primary" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Model parameters -->
+    <div class="mb-6">
+      <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-3">Model Parameters</p>
+      <div class="space-y-3">
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="text-xs font-semibold text-on-surface-variant">Number of Trees</label>
+            <span id="clf-trees-val" class="text-xs font-bold text-primary">100</span>
+          </div>
+          <input id="clf-n-trees" type="range" min="10" max="300" step="10" value="100" class="w-full accent-primary" />
+        </div>
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="text-xs font-semibold text-on-surface-variant">Max Depth (0 = unlimited)</label>
+            <span id="clf-depth-val" class="text-xs font-bold text-primary">5</span>
+          </div>
+          <input id="clf-max-depth" type="range" min="0" max="20" step="1" value="5" class="w-full accent-primary" />
+        </div>
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="text-xs font-semibold text-on-surface-variant">Min Samples / Leaf</label>
+            <span id="clf-leaf-val" class="text-xs font-bold text-primary">1</span>
+          </div>
+          <input id="clf-min-leaf" type="range" min="1" max="20" step="1" value="1" class="w-full accent-primary" />
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-on-surface-variant mb-1 block">Max Features</label>
+          <select id="clf-max-features" class="w-full bg-surface-container-low border-none rounded-xl text-sm py-3 px-4">
+            <option value="sqrt">sqrt</option>
+            <option value="log2">log2</option>
+            <option value="all">All</option>
+          </select>
+        </div>
+        <label class="flex items-center gap-3 rounded-xl p-3 bg-surface-container-low cursor-pointer hover:bg-surface-container-high transition-colors">
+          <input id="clf-bootstrap" type="checkbox" checked class="accent-primary rounded" />
+          <div>
+            <p class="text-sm font-semibold text-on-surface">Bootstrap</p>
+            <p class="text-xs text-on-surface-variant">Sample with replacement</p>
+          </div>
+        </label>
+        <label class="flex items-center gap-3 rounded-xl p-3 bg-surface-container-low cursor-pointer hover:bg-surface-container-high transition-colors">
+          <input id="clf-class-weight" type="checkbox" class="accent-primary rounded" />
+          <div>
+            <p class="text-sm font-semibold text-on-surface">Balanced Class Weight</p>
+            <p class="text-xs text-on-surface-variant">Inverse frequency weighting</p>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Train button -->
+    <button id="clf-train-btn" class="w-full bg-primary text-white rounded-full font-bold text-sm shadow-lg shadow-primary/20 py-3 flex items-center justify-center gap-2 hover:bg-primary-container transition-colors">
+      <span class="material-symbols-outlined text-[18px]">model_training</span>
+      Train Model
+    </button>
   </div>
+
+  <!-- Results area: col 8 -->
+  <div id="clf-results" class="col-span-12 lg:col-span-8 flex flex-col gap-4">
+    <!-- Empty state -->
+    <div class="bg-surface-container-lowest rounded-[2rem] p-12 flex-1 flex items-center justify-center">
+      <div class="text-center">
+        <span class="material-symbols-outlined text-6xl text-outline mb-4">psychology</span>
+        <p class="text-xl font-bold text-on-surface mb-2">Configure & Train</p>
+        <p class="text-sm text-on-surface-variant max-w-sm mx-auto">Select features and model parameters, then click Train to evaluate your Random Forest classifier on held-out flood events.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaderboard: full width -->
+  <div class="col-span-12 bg-surface-container-lowest rounded-[2rem] p-8">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <p class="text-xl font-bold negative-tracking">Leaderboard</p>
+        <p class="text-xs text-on-surface-variant mt-1">Top classifiers ranked by F1 score &mdash; auto-refreshing every 5s</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="relative flex h-2.5 w-2.5">
+          <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
+          <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500"></span>
+        </span>
+        <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Live</span>
+      </div>
+    </div>
+    <div id="clf-leaderboard" class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-outline-variant">
+            <th class="text-left py-3 px-2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">#</th>
+            <th class="text-left py-3 px-2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Team</th>
+            <th class="text-left py-3 px-2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">F1</th>
+            <th class="text-left py-3 px-2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Accuracy</th>
+            <th class="text-left py-3 px-2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Precision</th>
+            <th class="text-left py-3 px-2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Recall</th>
+            <th class="text-left py-3 px-2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Trees</th>
+            <th class="text-left py-3 px-2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Depth</th>
+            <th class="text-left py-3 px-2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Submitted</th>
+          </tr>
+        </thead>
+        <tbody id="clf-lb-body">
+          <tr><td colspan="9" class="text-center py-8 text-on-surface-variant">No submissions yet</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
+
+<script src="/js/classifier.js"></script>

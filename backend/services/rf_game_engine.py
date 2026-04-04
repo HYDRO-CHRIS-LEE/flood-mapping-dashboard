@@ -29,7 +29,8 @@ PLAYABLE_HEIGHT = WORLD_HEIGHT - GROUND_HEIGHT  # 520
 BIRD_START_Y = PLAYABLE_HEIGHT / 2  # 260
 GRAVITY = 0.5
 FLAP_VELOCITY = -8.0
-MAX_PIPES = 50
+MAX_PIPES_PRACTICE = 50
+MAX_PIPES_LEADERBOARD = 200
 PIPE_SPACING_X = 250
 
 # ── Feature efficiency → physics difficulty ──
@@ -166,11 +167,18 @@ def _run_episode(
     model, scaler, features: list[str],
     samples: pd.DataFrame, seed: int,
     frames_per_pipe: int = 30, gap_size: int = 150,
+    max_pipes: int = 50,
 ) -> dict:
     """Run one game episode. Returns score, frames, classification events."""
     rng = random.Random(seed)
-    sample_indices = list(samples.index)
-    rng.shuffle(sample_indices)
+    base_indices = list(samples.index)
+    rng.shuffle(base_indices)
+    # Repeat samples if max_pipes > available samples
+    sample_indices = base_indices.copy()
+    while len(sample_indices) < max_pipes:
+        extra = base_indices.copy()
+        rng.shuffle(extra)
+        sample_indices.extend(extra)
 
     frames = []
     classification_events = []
@@ -183,7 +191,7 @@ def _run_episode(
 
     half_gap = gap_size // 2
 
-    for pipe_idx in range(min(MAX_PIPES, len(sample_indices))):
+    for pipe_idx in range(min(max_pipes, len(sample_indices))):
         if not alive:
             break
 
@@ -313,13 +321,21 @@ def run_rf_game(
             f"Stage {stage_id} (found {len(stage_samples)})."
         )
 
-    seeds = STAGE_SEEDS.get(stage_id, [42] * 10)
+    # Leaderboard: 1 long episode (200 pipes). Practice: 10 short episodes (50 pipes).
+    if mode == "leaderboard":
+        max_pipes = MAX_PIPES_LEADERBOARD
+        seeds = [STAGE_SEEDS.get(stage_id, [42])[0]]  # single seed
+    else:
+        max_pipes = MAX_PIPES_PRACTICE
+        seeds = STAGE_SEEDS.get(stage_id, [42] * 10)
+
     episodes = []
     scores = []
 
     for i, seed in enumerate(seeds):
         ep = _run_episode(model, scaler, features, stage_samples, seed,
-                          frames_per_pipe=frames_per_pipe, gap_size=gap_size)
+                          frames_per_pipe=frames_per_pipe, gap_size=gap_size,
+                          max_pipes=max_pipes)
         ep["episode_index"] = i
         ep["passed"] = (
             STAGES[stage_id]["pass_avg"] is not None

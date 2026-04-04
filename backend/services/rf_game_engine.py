@@ -33,42 +33,80 @@ MAX_PIPES_PRACTICE = 50
 MAX_PIPES_LEADERBOARD = 200
 PIPE_SPACING_X = 250
 
-# ── Feature efficiency → physics difficulty ──
-# feature_ratio = n_used / n_available (0.0 ~ 1.0)
-# Higher ratio (more features) = slower pipes, wider gap = easier physically
-# Lower ratio (fewer features) = faster pipes, narrower gap = harder physically
+# ── Physics difficulty: two axes ──
 #
-# Frames-per-pipe: lerp from FAST (ratio=0) to SLOW (ratio=1)
-FRAMES_PER_PIPE_FAST = 15   # fewest features → fastest
-FRAMES_PER_PIPE_SLOW = 35   # all features → slowest
-# Gap size: lerp from NARROW (ratio=0) to WIDE (ratio=1)
-GAP_SIZE_NARROW = 110
-GAP_SIZE_WIDE = 170
-
-
-def _physics_for_feature_ratio(feature_ratio: float) -> tuple[int, int]:
-    """Return (frames_per_pipe, gap_size) based on feature usage ratio."""
-    r = max(0.0, min(1.0, feature_ratio))
-    frames = int(FRAMES_PER_PIPE_FAST + r * (FRAMES_PER_PIPE_SLOW - FRAMES_PER_PIPE_FAST))
-    gap = int(GAP_SIZE_NARROW + r * (GAP_SIZE_WIDE - GAP_SIZE_NARROW))
-    return frames, gap
-
-
-# ── Stage definitions ──
-# Two independent difficulty axes:
-#   1. confidence_pool: which test samples (classification difficulty)
-#   2. physics affected by feature count (physical difficulty)
+# Axis 1: Feature efficiency (fewer features = harder)
+#   feature_ratio = n_used / n_available (0.0 ~ 1.0)
+#   Affects base speed and base gap size.
 #
-# Design: 100% features → stages 1-3 passable, stage 4-5 challenging
-# The pass_avg values are calibrated so that even with slow pipes (100% features),
-# a model with ~90%+ accuracy can reach pass_avg on stages 1-3.
+# Axis 2: Stage progression (higher stage = harder)
+#   Each stage multiplies speed and shrinks gap further.
+#
+# Final: frames_per_pipe = base_frames * stage_speed_mult
+#        gap_size        = base_gap    * stage_gap_mult
+
+# ── Base physics from feature ratio ──
+BASE_FRAMES_FAST = 12    # fewest features → fastest base
+BASE_FRAMES_SLOW = 28    # all features → slowest base
+BASE_GAP_NARROW = 100    # fewest features → narrowest base
+BASE_GAP_WIDE = 160      # all features → widest base
+
+# ── Stage multipliers (applied on top of base) ──
+# speed_mult < 1.0 = faster (fewer frames per pipe)
+# gap_mult < 1.0 = narrower gap
 STAGES = {
-    1: {"label": "First Flight",            "confidence_pool": "top_40", "pass_avg": 5},
-    2: {"label": "Getting Steady",          "confidence_pool": "top_60", "pass_avg": 4},
-    3: {"label": "Tighter Gaps",            "confidence_pool": "top_80", "pass_avg": 3},
-    4: {"label": "Under Pressure",          "confidence_pool": "all",    "pass_avg": 3},
-    5: {"label": "Survival of the Fittest", "confidence_pool": "bottom_50", "pass_avg": None},
+    1: {
+        "label": "First Flight",
+        "confidence_pool": "top_40",
+        "pass_avg": 8,
+        "speed_mult": 1.0,     # base speed
+        "gap_mult": 1.0,       # base gap
+    },
+    2: {
+        "label": "Getting Steady",
+        "confidence_pool": "top_60",
+        "pass_avg": 6,
+        "speed_mult": 0.85,    # 15% faster
+        "gap_mult": 0.90,      # 10% narrower
+    },
+    3: {
+        "label": "Tighter Gaps",
+        "confidence_pool": "top_80",
+        "pass_avg": 5,
+        "speed_mult": 0.70,    # 30% faster
+        "gap_mult": 0.80,      # 20% narrower
+    },
+    4: {
+        "label": "Under Pressure",
+        "confidence_pool": "all",
+        "pass_avg": 4,
+        "speed_mult": 0.55,    # 45% faster
+        "gap_mult": 0.70,      # 30% narrower
+    },
+    5: {
+        "label": "Survival of the Fittest",
+        "confidence_pool": "bottom_50",
+        "pass_avg": None,
+        "speed_mult": 0.45,    # 55% faster
+        "gap_mult": 0.60,      # 40% narrower
+    },
 }
+
+
+def _physics_for_stage(feature_ratio: float, stage_id: int) -> tuple[int, int]:
+    """Return (frames_per_pipe, gap_size) combining feature ratio + stage difficulty."""
+    r = max(0.0, min(1.0, feature_ratio))
+    stage = STAGES.get(stage_id, STAGES[1])
+
+    # Base from feature ratio
+    base_frames = BASE_FRAMES_FAST + r * (BASE_FRAMES_SLOW - BASE_FRAMES_FAST)
+    base_gap = BASE_GAP_NARROW + r * (BASE_GAP_WIDE - BASE_GAP_NARROW)
+
+    # Apply stage multipliers
+    frames = max(6, int(base_frames * stage["speed_mult"]))
+    gap = max(60, int(base_gap * stage["gap_mult"]))
+
+    return frames, gap
 
 STAGE_SEEDS = {
     1: [1031, 1049, 1063, 1091, 1103, 1129, 1151, 1181, 1213, 1237],
@@ -337,7 +375,7 @@ def run_rf_game(
     n_available = len(ALL_FEATURES)
     n_used = len(features)
     feature_ratio = n_used / n_available if n_available > 0 else 1.0
-    frames_per_pipe, gap_size = _physics_for_feature_ratio(feature_ratio)
+    frames_per_pipe, gap_size = _physics_for_stage(feature_ratio, stage_id)
 
     stage_samples = _select_stage_samples(model, scaler, features, test_df, stage_id)
     if len(stage_samples) < 10:

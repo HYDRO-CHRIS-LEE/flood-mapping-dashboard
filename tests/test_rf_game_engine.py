@@ -10,7 +10,7 @@ from backend.services.rf_game_engine import (
 
 def test_stages_defined():
     assert len(STAGES) == 5
-    assert STAGES[1]["pass_avg"] == 5
+    assert STAGES[1]["pass_avg"] == 8
     assert STAGES[5]["pass_avg"] is None
 
 

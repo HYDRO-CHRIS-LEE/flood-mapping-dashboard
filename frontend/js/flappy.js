@@ -119,14 +119,20 @@ function init_flappy() {
 
   function setActiveMode(mode) {
     activeMode = mode;
-    var activeClass = 'flex-1 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors bg-primary text-white';
-    var inactiveClass = 'flex-1 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high';
+    var activeClass = 'px-6 py-2.5 rounded-full font-bold text-sm transition-all bg-primary text-white shadow-lg shadow-primary/20';
+    var inactiveClass = 'px-6 py-2.5 rounded-full font-bold text-sm transition-all bg-surface-container-high text-on-surface hover:bg-surface-container-highest';
 
     if (tabStudent) tabStudent.className = mode === 'student' ? activeClass : inactiveClass;
     if (tabAdmin) tabAdmin.className = mode === 'admin' ? activeClass : inactiveClass;
 
-    if (studentView) studentView.style.display = mode === 'student' ? '' : 'none';
-    if (adminView) adminView.style.display = mode === 'admin' ? '' : 'none';
+    if (studentView) {
+      if (mode === 'student') { studentView.classList.remove('hidden'); }
+      else { studentView.classList.add('hidden'); }
+    }
+    if (adminView) {
+      if (mode === 'admin') { adminView.classList.remove('hidden'); }
+      else { adminView.classList.add('hidden'); }
+    }
   }
 
   if (tabStudent) {
@@ -757,8 +763,8 @@ function init_flappy() {
       }
       adminPw = pw;
       if (adminLoginError) adminLoginError.textContent = '';
-      if (adminLoginPanel) adminLoginPanel.style.display = 'none';
-      if (adminCompPanel) adminCompPanel.style.display = '';
+      if (adminLoginPanel) adminLoginPanel.classList.add('hidden');
+      if (adminCompPanel) adminCompPanel.classList.remove('hidden');
       fetchSubmittedTeams();
     });
   }

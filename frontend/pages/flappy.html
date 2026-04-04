@@ -107,9 +107,22 @@
     </button>
     <div id="flappy-deploy-status"></div>
 
-    <!-- Score summary (after run) -->
-    <div id="flappy-score-summary" class="hidden">
-      <!-- Populated by JS after a deploy run -->
+    <!-- Stage Results Grid (always visible, updated per run) -->
+    <div id="flappy-stage-results">
+      <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-3">Run Results</p>
+      <div class="space-y-2" id="flappy-stage-results-grid">
+        <!-- Populated by JS: one row per stage -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Result popup modal (shown after practice run ends) -->
+  <div id="flappy-result-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm">
+    <div class="bg-white rounded-[2rem] p-8 max-w-md w-full mx-4 shadow-2xl">
+      <div id="flappy-result-modal-content"></div>
+      <button id="flappy-result-modal-close" class="w-full mt-6 bg-primary text-white rounded-full font-bold text-sm py-3 hover:bg-primary-container transition-colors">
+        Close
+      </button>
     </div>
   </div>
 

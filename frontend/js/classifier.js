@@ -372,7 +372,7 @@ function init_classifier() {
       return `
         <tr class="${rowClass} border-b border-outline-variant/50">
           <td class="py-3 px-2 font-bold">${medal}</td>
-          <td class="py-3 px-2 font-semibold text-on-surface">${e.team_name}${isMe ? ' <span class="text-[10px] text-primary font-bold">(you)</span>' : ''}</td>
+          <td class="py-3 px-2 font-semibold text-on-surface">${isMe ? (localStorage.getItem('earthai_name') || e.team_name) : e.team_name}${isMe ? ' <span class="text-[10px] text-primary font-bold">(you)</span>' : ''}</td>
           <td class="py-3 px-2 font-black text-primary">${e.f1 != null ? e.f1.toFixed(4) : '--'}</td>
           <td class="py-3 px-2">${e.accuracy != null ? e.accuracy.toFixed(4) : '--'}</td>
           <td class="py-3 px-2">${e.precision_val != null ? e.precision_val.toFixed(4) : '--'}</td>

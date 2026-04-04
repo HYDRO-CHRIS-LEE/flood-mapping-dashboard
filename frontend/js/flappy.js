@@ -319,11 +319,8 @@ function init_flappy() {
         deployBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">smart_toy</span> Deploy My Classifier';
         showDeployStatus('', '');
 
-        // Store result for popup
+        // Store result for popup (grid updates after replay ends)
         lastPlayResult = data;
-
-        // Update stage result grid
-        updateStageResult(data);
 
         // Load replay
         loadReplay(data);
@@ -369,14 +366,27 @@ function init_flappy() {
           ? '<span class="material-symbols-outlined text-emerald-600 text-[14px]">check_circle</span>'
           : '<span class="material-symbols-outlined text-red-500 text-[14px]">cancel</span>';
         var scoreColor = r.passed ? 'text-emerald-700' : 'text-red-600';
+        var modeLabel = r.mode === 'leaderboard' ? 'LB' : 'PR';
 
-        return '<div class="flex items-center gap-3 p-3 rounded-xl border ' + passedClass + '">' +
-          '<div class="flex items-center gap-2 flex-1 min-w-0">' +
+        // Episode scores as small pills
+        var scoresHtml = '';
+        if (r.scores && r.scores.length > 0) {
+          scoresHtml = '<div class="flex flex-wrap gap-1 mt-2">' +
+            r.scores.map(function(sc) {
+              return '<span class="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold ' +
+                (sc > 0 ? 'bg-white/80 text-on-surface' : 'bg-red-100 text-red-600') + '">' + sc + '</span>';
+            }).join('') +
+          '</div>';
+        }
+
+        return '<div class="p-3 rounded-xl border ' + passedClass + '">' +
+          '<div class="flex items-center gap-2">' +
             passedIcon +
-            '<span class="text-xs font-bold text-on-surface truncate">Stage ' + sid + '</span>' +
+            '<span class="text-xs font-bold text-on-surface flex-1">Stage ' + sid + '</span>' +
+            '<span class="text-[10px] text-on-surface-variant font-medium">' + modeLabel + '</span>' +
+            '<span class="text-sm font-black ' + scoreColor + ' tracking-tighter ml-1">' + r.avg_score + '</span>' +
           '</div>' +
-          '<span class="text-sm font-black ' + scoreColor + ' tracking-tighter">' + r.avg_score + '</span>' +
-          '<span class="text-[10px] text-on-surface-variant font-medium w-8 text-right">' + (r.mode === 'leaderboard' ? 'LB' : 'PR') + '</span>' +
+          scoresHtml +
         '</div>';
       } else {
         return '<div class="flex items-center gap-3 p-3 rounded-xl border border-surface-container-high bg-surface-container-low">' +
@@ -397,6 +407,7 @@ function init_flappy() {
     stageResults[sid] = {
       avg_score: s.avg_score,
       max_score: s.max_score,
+      scores: s.scores || [],
       passed: s.passed,
       mode: data.mode || selectedMode,
     };
@@ -760,10 +771,11 @@ function init_flappy() {
           frameIdx = 0;
         }
       } else {
-        // All episodes done — stop and show result popup
+        // All episodes done — stop, update grid, show popup
         playing = false;
         if (btnPlay) btnPlay.textContent = 'Play';
         if (lastPlayResult) {
+          updateStageResult(lastPlayResult);
           showResultPopup(lastPlayResult);
         }
       }
@@ -860,11 +872,13 @@ function init_flappy() {
     }
 
     var myTeam = teamName();
+    var myTeamId = teamId();
     lbBody.innerHTML = entries.map(function(e, i) {
       var rank = i + 1;
-      var isMe = e.team_name === myTeam;
+      var isMe = e.team_id === myTeamId;
       var bgClass = isMe ? 'bg-blue-50 border-primary/20' : 'bg-white border-slate-100';
-      var initial = (e.team_name || '?').charAt(0).toUpperCase();
+      var displayName = isMe ? (localStorage.getItem('earthai_name') || e.team_name) : e.team_name;
+      var initial = (displayName || '?').charAt(0).toUpperCase();
       var color = TEAM_COLORS[i % TEAM_COLORS.length];
       var passedBadge = e.passed
         ? '<span class="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full uppercase">Passed</span>'
@@ -874,7 +888,7 @@ function init_flappy() {
         '<span class="text-lg font-black w-6 italic ' + (rank <= 3 ? 'text-primary/40' : 'text-slate-300') + '">' + (rank < 10 ? '0' : '') + rank + '</span>' +
         '<div class="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0" style="background:' + color + '">' + initial + '</div>' +
         '<div class="flex-1 min-w-0">' +
-          '<p class="text-sm font-bold text-on-surface truncate">' + e.team_name + (isMe ? ' <span class="text-[10px] text-primary font-bold">(you)</span>' : '') + '</p>' +
+          '<p class="text-sm font-bold text-on-surface truncate">' + displayName + (isMe ? ' <span class="text-[10px] text-primary font-bold">(you)</span>' : '') + '</p>' +
           '<p class="text-[10px] text-on-surface-variant">Avg: ' + (e.avg_score != null ? e.avg_score.toFixed(1) : '--') + ' | Max: ' + (e.max_score != null ? e.max_score.toFixed(1) : '--') + '</p>' +
         '</div>' +
         '<div class="text-right flex flex-col items-end gap-1">' +

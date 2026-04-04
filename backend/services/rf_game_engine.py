@@ -304,14 +304,36 @@ def _run_episode(
             score += 1
             next_pipe_idx += 1
         else:
-            # Fail: bird drifts and crashes into this pipe
-            crash_frames = 20
+            # Fail: bird flies toward pipe at normal speed, then crashes at the pipe
+            pipe_x = pipe["world_x"]
+            dist_to_pipe = pipe_x - start_x
+            approach_frames = max(1, int(dist_to_pipe / bird_speed_x))
+            crash_frames = 12  # frames after hitting pipe
+
+            # Phase 1: approach the pipe (normal flight, slight drift)
+            for f in range(approach_frames):
+                t = (f + 1) / approach_frames
+                bird_x = start_x + dist_to_pipe * t
+                # Drift slightly away from gap (wrong direction)
+                drift = (PLAYABLE_HEIGHT / 2 - target_y) * 0.3 * t
+                bird_y = start_y + drift
+                bird_y = max(0, min(bird_y, PLAYABLE_HEIGHT))
+
+                frames.append({
+                    "t": len(frames),
+                    "bird_x": round(bird_x, 1),
+                    "bird_y": round(bird_y, 1),
+                    "alive": True,
+                    "score": score,
+                })
+
+            # Phase 2: hit the pipe and fall
             vel = 0.0
             for f in range(crash_frames):
-                vel += GRAVITY * 1.5
+                vel += GRAVITY * 2.0
                 bird_y += vel
                 bird_y = max(0, min(bird_y, PLAYABLE_HEIGHT))
-                bird_x = start_x + bird_speed_x * (f + 1) * 0.3  # slow forward
+                bird_x += bird_speed_x * 0.1  # barely move forward
 
                 is_alive = f < crash_frames - 3
                 frames.append({

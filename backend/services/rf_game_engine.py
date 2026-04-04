@@ -169,37 +169,48 @@ def _run_episode(
     frames_per_pipe: int = 30, gap_size: int = 150,
     max_pipes: int = 50,
 ) -> dict:
-    """Run one game episode. Returns score, frames, classification events."""
+    """Run one game episode.
+
+    The bird moves rightward through a pre-laid pipe map.
+    The camera follows the bird. Multiple pipes visible at once.
+
+    Frame format:
+        bird_x: world x position of bird (increases each frame)
+        bird_y: world y position of bird
+        alive: bool
+        score: pipes passed so far
+    All pipe positions are returned once in ``pipe_map`` (not per-frame).
+    """
     rng = random.Random(seed)
     base_indices = list(samples.index)
     rng.shuffle(base_indices)
-    # Repeat samples if max_pipes > available samples
     sample_indices = base_indices.copy()
     while len(sample_indices) < max_pipes:
         extra = base_indices.copy()
         rng.shuffle(extra)
         sample_indices.extend(extra)
 
-    frames = []
+    half_gap = gap_size // 2
+
+    # ── Pre-lay all pipes at fixed world-x positions ──
+    pipe_map = []
+    for i in range(min(max_pipes, len(sample_indices))):
+        pipe_world_x = (i + 1) * PIPE_SPACING_X
+        gap_y = rng.randint(half_gap + 20, PLAYABLE_HEIGHT - half_gap - 20)
+        pipe_map.append({
+            "world_x": pipe_world_x,
+            "gap_y": gap_y,
+            "gap_size": gap_size,
+        })
+
+    # ── Pre-classify all pipes ──
     classification_events = []
-    bird_y = BIRD_START_Y
-    bird_vel = 0.0
-    score = 0
-    alive = True
+    pipe_correct = []
     total_correct = 0
     n_seen = 0
 
-    half_gap = gap_size // 2
-
-    for pipe_idx in range(min(max_pipes, len(sample_indices))):
-        if not alive:
-            break
-
-        # Generate pipe position (constrained by gap size)
-        gap_y = rng.randint(half_gap + 20, PLAYABLE_HEIGHT - half_gap - 20)
-
-        # Classify sample
-        sample_row = samples.loc[sample_indices[pipe_idx]]
+    for i, pipe in enumerate(pipe_map):
+        sample_row = samples.loc[sample_indices[i]]
         X_sample = sample_row[features].values.reshape(1, -1)
         if scaler is not None:
             X_sample = scaler.transform(X_sample)
@@ -208,58 +219,71 @@ def _run_episode(
         true_label = int(sample_row["label"])
         correct = prediction == true_label
         n_seen += 1
+        if correct:
+            total_correct += 1
+        pipe_correct.append(correct)
 
         classification_events.append({
-            "pipe_index": pipe_idx,
+            "pipe_index": i,
             "true_label": true_label,
             "predicted": prediction,
             "correct": correct,
         })
 
-        if correct:
-            total_correct += 1
-            # Safe trajectory: smooth lerp toward gap center
-            start_y = bird_y
-            target_y = float(gap_y)
-            n_frames = frames_per_pipe
-            for f in range(n_frames):
-                # Smooth ease-in-out interpolation
-                t = (f + 1) / n_frames
-                # Cubic ease: slow start, fast middle, slow end
-                t_smooth = t * t * (3.0 - 2.0 * t)
+    # ── Generate frames: bird flies rightward through the map ──
+    frames = []
+    bird_x = 0.0
+    bird_y = BIRD_START_Y
+    score = 0
+    alive = True
+    next_pipe_idx = 0
+    bird_speed_x = PIPE_SPACING_X / frames_per_pipe  # pixels per frame
+
+    while alive and next_pipe_idx < len(pipe_map):
+        pipe = pipe_map[next_pipe_idx]
+        target_y = float(pipe["gap_y"])
+        start_y = bird_y
+        start_x = bird_x
+
+        if pipe_correct[next_pipe_idx]:
+            # Safe: smooth lerp to gap center over frames_per_pipe frames
+            for f in range(frames_per_pipe):
+                t = (f + 1) / frames_per_pipe
+                t_smooth = t * t * (3.0 - 2.0 * t)  # cubic ease
                 bird_y = start_y + (target_y - start_y) * t_smooth
                 bird_y = max(0, min(bird_y, PLAYABLE_HEIGHT))
-                action = 1 if target_y < start_y else 0
+                bird_x = start_x + bird_speed_x * (f + 1)
 
-                pipe_x = PIPE_SPACING_X - (f * PIPE_SPACING_X / n_frames)
                 frames.append({
                     "t": len(frames),
+                    "bird_x": round(bird_x, 1),
                     "bird_y": round(bird_y, 1),
                     "alive": True,
                     "score": score,
-                    "action": action,
-                    "pipes": [{"x": round(pipe_x, 1), "gap_y": gap_y, "gap_size": gap_size}],
                 })
 
             bird_y = target_y
-            bird_vel = 0.0
             score += 1
+            next_pipe_idx += 1
         else:
-            # Fail trajectory: bird drifts and crashes
-            for f in range(15):
-                bird_vel += GRAVITY
-                bird_y += bird_vel
+            # Fail: bird drifts and crashes into this pipe
+            crash_frames = 20
+            vel = 0.0
+            for f in range(crash_frames):
+                vel += GRAVITY * 1.5
+                bird_y += vel
                 bird_y = max(0, min(bird_y, PLAYABLE_HEIGHT))
-                pipe_x = PIPE_SPACING_X - (f * PIPE_SPACING_X / 15)
-                is_alive = f < 12
+                bird_x = start_x + bird_speed_x * (f + 1) * 0.3  # slow forward
+
+                is_alive = f < crash_frames - 3
                 frames.append({
                     "t": len(frames),
+                    "bird_x": round(bird_x, 1),
                     "bird_y": round(bird_y, 1),
                     "alive": is_alive,
                     "score": score,
-                    "action": -1 if not is_alive else 0,
-                    "pipes": [{"x": round(pipe_x, 1), "gap_y": gap_y, "gap_size": gap_size}],
                 })
+
             alive = False
 
     episode_accuracy = total_correct / n_seen if n_seen > 0 else 0
@@ -271,6 +295,7 @@ def _run_episode(
         "total_correct": total_correct,
         "n_samples_seen": n_seen,
         "classification_events": classification_events,
+        "pipe_map": pipe_map,
         "frames": frames,
     }
 

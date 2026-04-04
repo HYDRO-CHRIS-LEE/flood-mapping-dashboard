@@ -57,7 +57,6 @@ function init_flappy() {
   var btnNext = document.getElementById('flappy-btn-next');
   var overlayStage = document.getElementById('flappy-info-stage');
   var overlayEpisode = document.getElementById('flappy-info-episode');
-  var overlayFrame = document.getElementById('flappy-info-frame');
   var overlayScore = document.getElementById('flappy-info-score');
 
   var lbTabsContainer = document.getElementById('flappy-lb-tabs');
@@ -547,44 +546,41 @@ function init_flappy() {
     ctx.stroke();
   }
 
-  function drawPipe(px, gapY, gapSize) {
-    var sx = px * SCALE_X;
+  // Bird is drawn at a fixed screen X (25% from left). Camera follows bird_x.
+  var BIRD_SCREEN_X_RATIO = 0.25;
+
+  function drawPipeAtScreenX(screenX, gapY, gapSize) {
     var sw = PIPE_WIDTH * SCALE_X;
     var sgapY = gapY * SCALE_Y;
     var sgapSize = gapSize * SCALE_Y;
     var capH = 8;
 
-    var topPipeBottom = sgapY - sgapSize / 2;
-    var bottomPipeTop = sgapY + sgapSize / 2;
+    var topBottom = sgapY - sgapSize / 2;
+    var botTop = sgapY + sgapSize / 2;
 
-    // Top pipe body
+    // Top pipe
     ctx.fillStyle = '#22c55e';
-    ctx.fillRect(sx, 0, sw, topPipeBottom);
-    // Top pipe cap
+    ctx.fillRect(screenX, 0, sw, topBottom);
     ctx.fillStyle = '#15803d';
-    ctx.fillRect(sx - 3, topPipeBottom - capH, sw + 6, capH);
+    ctx.fillRect(screenX - 3, topBottom - capH, sw + 6, capH);
 
-    // Bottom pipe body
+    // Bottom pipe
     ctx.fillStyle = '#22c55e';
-    ctx.fillRect(sx, bottomPipeTop, sw, CANVAS_H - bottomPipeTop);
-    // Bottom pipe cap
+    ctx.fillRect(screenX, botTop, sw, CANVAS_H - botTop);
     ctx.fillStyle = '#15803d';
-    ctx.fillRect(sx - 3, bottomPipeTop, sw + 6, capH);
+    ctx.fillRect(screenX - 3, botTop, sw + 6, capH);
   }
 
-  function drawBird(birdY, alive, score) {
-    var bx = 60 * SCALE_X;
-    var by = birdY * SCALE_Y;
+  function drawBirdAtScreenPos(screenX, screenY, alive, score) {
     var radius = 12;
     var color = TEAM_COLORS[0];
-    var alpha = alive ? 1.0 : 0.4;
 
     ctx.save();
-    ctx.globalAlpha = alpha;
+    ctx.globalAlpha = alive ? 1.0 : 0.4;
 
     // Body
     ctx.beginPath();
-    ctx.arc(bx, by, radius, 0, Math.PI * 2);
+    ctx.arc(screenX, screenY, radius, 0, Math.PI * 2);
     ctx.fillStyle = color;
     ctx.fill();
     ctx.strokeStyle = 'rgba(0,0,0,0.3)';
@@ -593,11 +589,11 @@ function init_flappy() {
 
     // Eye
     ctx.beginPath();
-    ctx.arc(bx + 4, by - 3, 4, 0, Math.PI * 2);
+    ctx.arc(screenX + 4, screenY - 3, 4, 0, Math.PI * 2);
     ctx.fillStyle = '#ffffff';
     ctx.fill();
     ctx.beginPath();
-    ctx.arc(bx + 5, by - 3, 2, 0, Math.PI * 2);
+    ctx.arc(screenX + 5, screenY - 3, 2, 0, Math.PI * 2);
     ctx.fillStyle = '#0f172a';
     ctx.fill();
 
@@ -608,26 +604,25 @@ function init_flappy() {
       ctx.lineCap = 'round';
       var xOff = 10;
       ctx.beginPath();
-      ctx.moveTo(bx - xOff, by - xOff);
-      ctx.lineTo(bx + xOff, by + xOff);
+      ctx.moveTo(screenX - xOff, screenY - xOff);
+      ctx.lineTo(screenX + xOff, screenY + xOff);
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(bx + xOff, by - xOff);
-      ctx.lineTo(bx - xOff, by + xOff);
+      ctx.moveTo(screenX + xOff, screenY - xOff);
+      ctx.lineTo(screenX - xOff, screenY + xOff);
       ctx.stroke();
     }
 
-    // Team name
-    var name = teamName();
+    // Team name above
     ctx.font = '600 10px Inter, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillStyle = color;
-    ctx.fillText(name, bx, by - radius - 14);
+    ctx.fillText(teamName(), screenX, screenY - radius - 14);
 
-    // Score
+    // Score below
     ctx.font = '500 10px Inter, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.fillText('Score: ' + score, bx, by + radius + 14);
+    ctx.fillText('Score: ' + score, screenX, screenY + radius + 14);
 
     ctx.restore();
   }
@@ -641,32 +636,43 @@ function init_flappy() {
     var frame = ep.frames[frameIdx];
     if (!frame) return;
 
+    var birdWorldX = frame.bird_x || 0;
+    var birdWorldY = frame.bird_y || 0;
+
+    // Camera: bird stays at fixed screen X, world scrolls
+    var birdScreenX = CANVAS_W * BIRD_SCREEN_X_RATIO;
+    var cameraX = birdWorldX - (birdScreenX / SCALE_X);
+
     drawBackground();
 
-    // Pipes
-    var pipes = frame.pipes || [];
-    for (var pi = 0; pi < pipes.length; pi++) {
-      var p = pipes[pi];
-      drawPipe(p.x, p.gap_y, p.gap_size);
+    // Draw ALL pipes from pipe_map (visible ones only)
+    var pipeMap = ep.pipe_map || [];
+    var viewLeft = cameraX - 50;
+    var viewRight = cameraX + WORLD_W + 50;
+
+    for (var i = 0; i < pipeMap.length; i++) {
+      var pipe = pipeMap[i];
+      if (pipe.world_x >= viewLeft && pipe.world_x <= viewRight) {
+        var pipeScreenX = (pipe.world_x - cameraX) * SCALE_X;
+        drawPipeAtScreenX(pipeScreenX, pipe.gap_y, pipe.gap_size);
+      }
     }
 
     drawGround();
 
-    // Single bird (RF deploy format)
-    drawBird(frame.bird_y, frame.alive, frame.score);
+    // Bird at fixed screen X
+    var birdScreenY = birdWorldY * SCALE_Y;
+    drawBirdAtScreenPos(birdScreenX, birdScreenY, frame.alive, frame.score);
 
-    // Update overlay
     updateOverlay(frame, ep);
   }
 
   function updateOverlay(frame, ep) {
     var stageId = replayData.stage_id != null ? replayData.stage_id : '--';
-    var totalFrames = ep ? ep.frames.length - 1 : 0;
     var totalEpisodes = replayData.episodes ? replayData.episodes.length : 0;
 
     if (overlayStage) overlayStage.textContent = stageId;
     if (overlayEpisode) overlayEpisode.textContent = (episodeIdx + 1) + ' / ' + totalEpisodes;
-    if (overlayFrame) overlayFrame.textContent = frameIdx + ' / ' + totalFrames;
     if (overlayScore) overlayScore.textContent = frame.score;
   }
 

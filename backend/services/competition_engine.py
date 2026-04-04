@@ -21,16 +21,25 @@ from backend.services.rf_game_engine import (
 from backend.services.rf_engine import ALL_FEATURES
 
 COMPETITION_MODELS_DIR = os.path.join(DATA_ROOT, "competition_models")
-SURVIVE_THRESHOLD = 100  # score needed to advance to next stage
+# Per-stage survive thresholds (score = consecutive correct before first error)
+# A 95% accurate model averages ~20 consecutive correct.
+SURVIVE_THRESHOLDS = {
+    1: 10,    # easy samples, most teams should pass
+    2: 8,     # medium
+    3: 6,     # harder samples, only strong models
+    4: 5,     # very hard
+    5: 0,     # final stage, no threshold — pure ranking
+}
 COMPETITION_MAX_PIPES = 200
 
 # Stage-specific physics for competition (escalating difficulty)
+# frames_per_pipe kept LOW for performance (20 teams × 200 pipes × frames = lots of data)
 COMPETITION_STAGE_PHYSICS = {
-    1: {"frames_per_pipe": 24, "gap_size": 160},   # easy
-    2: {"frames_per_pipe": 20, "gap_size": 140},   # medium
-    3: {"frames_per_pipe": 16, "gap_size": 120},   # hard
-    4: {"frames_per_pipe": 12, "gap_size": 100},   # very hard
-    5: {"frames_per_pipe": 9,  "gap_size": 80},    # extreme
+    1: {"frames_per_pipe": 6, "gap_size": 160},   # easy
+    2: {"frames_per_pipe": 5, "gap_size": 140},   # medium
+    3: {"frames_per_pipe": 5, "gap_size": 120},   # hard
+    4: {"frames_per_pipe": 4, "gap_size": 100},   # very hard
+    5: {"frames_per_pipe": 4, "gap_size": 80},    # extreme
 }
 
 
@@ -161,29 +170,27 @@ def _run_stage_multi(
         gap_y = rng.randint(half_gap + 20, PLAYABLE_HEIGHT - half_gap - 20)
         pipe_map.append({"world_x": pipe_world_x, "gap_y": gap_y, "gap_size": gap_size})
 
-    # Pre-classify all pipes for all teams
-    team_correct = {}  # team_id -> [bool, bool, ...]
+    # Pre-classify all pipes for all teams (vectorized — predict all at once)
+    sample_rows = stage_samples.loc[sample_indices]
+    true_labels = sample_rows["label"].values
+
+    team_correct = {}
     for team in teams:
         a = team["artifact"]
         model = a["model"]
         scaler = a.get("scaler")
         features = a["features"]
 
-        correct_list = []
-        for idx in sample_indices:
-            row = stage_samples.loc[idx]
-            # Use only features this model was trained on
-            available = [f for f in features if f in row.index]
-            if len(available) != len(features):
-                correct_list.append(False)
-                continue
-            X = row[features].values.reshape(1, -1)
-            if scaler is not None:
-                X = scaler.transform(X)
-            pred = int(model.predict(X)[0])
-            true = int(row["label"])
-            correct_list.append(pred == true)
-        team_correct[team["team_id"]] = correct_list
+        missing = [f for f in features if f not in sample_rows.columns]
+        if missing:
+            team_correct[team["team_id"]] = [False] * len(sample_indices)
+            continue
+
+        X = sample_rows[features].values
+        if scaler is not None:
+            X = scaler.transform(X)
+        preds = model.predict(X)
+        team_correct[team["team_id"]] = (preds == true_labels).tolist()
 
     # Generate synchronized frames
     frames = []
@@ -237,21 +244,35 @@ def _run_stage_multi(
                     new_y = start_y + (target_y - start_y) * t_smooth
                     new_y = max(0, min(new_y, PLAYABLE_HEIGHT))
                     bs["_draw_y"] = new_y
-                elif not bs.get("_crashed"):
-                    # Just died at this pipe — falling animation
-                    fall_y = bs.get("_draw_y", bs["y"]) + GRAVITY * 3 * (f + 1)
-                    fall_y = min(fall_y, PLAYABLE_HEIGHT)
+                    birds_frame.append({
+                        "team_id": tid,
+                        "team_name": bs["team_name"],
+                        "y": round(new_y, 1),
+                        "alive": True,
+                        "score": bs["score"],
+                    })
+                elif not bs.get("_gone"):
+                    # Just died — brief fall then gone
+                    death_frame = bs.get("_death_frame", 0)
+                    if death_frame == 0:
+                        bs["_death_frame"] = 1
+                    bs["_death_frame"] = bs.get("_death_frame", 0) + 1
+                    fall_y = bs.get("_draw_y", bs["y"]) + GRAVITY * 8 * bs["_death_frame"]
+                    fall_y = min(fall_y, PLAYABLE_HEIGHT + 50)
                     bs["_draw_y"] = fall_y
-                    if f == fps - 1:
-                        bs["_crashed"] = True
 
-                birds_frame.append({
-                    "team_id": tid,
-                    "team_name": bs["team_name"],
-                    "y": round(bs.get("_draw_y", bs["y"]), 1),
-                    "alive": bs["alive"],
-                    "score": bs["score"],
-                })
+                    if bs["_death_frame"] <= fps:
+                        # Show falling for one pipe duration, then gone
+                        birds_frame.append({
+                            "team_id": tid,
+                            "team_name": bs["team_name"],
+                            "y": round(fall_y, 1),
+                            "alive": False,
+                            "score": bs["score"],
+                        })
+                    else:
+                        bs["_gone"] = True
+                # Dead + gone = not included in frame
 
             bird_x = (pipe_idx * PIPE_SPACING_X) + bird_speed_x * (f + 1)
             frames.append({
@@ -329,33 +350,38 @@ def generate_demo_teams(n_teams: int = 20) -> list[dict]:
     ]
 
     teams = []
+    # Mix of strong and medium teams — most use 2-3 good features with strong RF
     feature_combos = [
-        ["NDWI"],
-        ["NDWI", "elevation"],
-        ["NDWI", "slope"],
+        # Strong teams (good feature combos, should survive multiple stages)
         ["NDWI", "elevation", "slope"],
-        ["NDWI", "MNDWI"],
         ["NDWI", "MNDWI", "elevation"],
-        ["NDWI", "MNDWI", "elevation", "slope"],
         ["NDWI", "elevation", "slope", "permanent_water"],
+        ["NDWI", "MNDWI", "elevation", "slope"],
         ["NDWI", "MNDWI", "elevation", "slope", "permanent_water"],
+        ["NDWI", "elevation"],
+        ["NDWI", "MNDWI", "slope"],
+        ["NDWI", "slope", "permanent_water"],
+        ["NDWI", "MNDWI", "elevation", "permanent_water"],
+        ["NDWI", "elevation", "permanent_water"],
+        # Medium teams
+        ["NDWI", "MNDWI"],
+        ["NDWI", "slope"],
+        ["elevation", "slope", "permanent_water"],
+        ["MNDWI", "elevation", "slope"],
+        ["NDWI", "permanent_water"],
+        # Weaker teams (fewer/worse features — should die earlier)
+        ["NDWI"],
         ["elevation", "slope"],
         ["MNDWI", "elevation"],
-        ["NDWI", "MNDWI", "slope"],
-        ["NDWI", "permanent_water"],
         ["slope", "permanent_water"],
-        ["NDWI", "elevation", "permanent_water"],
-        ["MNDWI", "slope", "permanent_water"],
-        ["NDWI", "MNDWI", "elevation", "permanent_water"],
-        ["elevation", "slope", "permanent_water"],
-        ["NDWI", "MNDWI", "slope", "permanent_water"],
-        ["MNDWI", "elevation", "slope"],
+        ["MNDWI"],
     ]
 
     for i in range(min(n_teams, len(TEAM_NAMES))):
         features = feature_combos[i % len(feature_combos)]
-        n_trees = random.choice([30, 50, 80, 100, 150])
-        max_depth = random.choice([3, 5, 7, 10])
+        # Strong RF configs — high tree count, good depth
+        n_trees = random.choice([150, 200, 250, 300])
+        max_depth = random.choice([8, 10, 12, 15])
 
         available_features = [f for f in features if f in train_df.columns]
         if not available_features:
@@ -363,12 +389,19 @@ def generate_demo_teams(n_teams: int = 20) -> list[dict]:
 
         X_tr = train_df[available_features].values
         y_tr = train_df["label"].values
-
+        # Ensure enough samples and handle class imbalance
         clf = RandomForestClassifier(
             n_estimators=n_trees, max_depth=max_depth,
+            min_samples_leaf=2,
+            class_weight="balanced",
             random_state=42 + i, n_jobs=-1,
         )
         clf.fit(X_tr, y_tr)
+
+        # Measure actual accuracy on test split
+        X_te = test_split[available_features].values
+        y_te = test_split["label"].values
+        acc = float((clf.predict(X_te) == y_te).mean())
 
         team_id = f"demo-team-{i:03d}"
         team_name = TEAM_NAMES[i]
@@ -381,7 +414,7 @@ def generate_demo_teams(n_teams: int = 20) -> list[dict]:
             "features": available_features,
             "scaler": None,
             "hyperparameters": {"n_trees": n_trees, "max_depth": max_depth},
-            "metrics": {"f1": 0, "accuracy": 0},
+            "metrics": {"f1": acc, "accuracy": acc},
             "held_out_events": HELD_OUT_EVENTS,
             "class_labels": {0: "non-flood", 1: "flood"},
             "artifact_version": "rf_artifact_v1",
@@ -465,15 +498,15 @@ def run_competition(admin_password: str) -> dict:
         # Filter to survivors only
         survivor_set = set(result["survivors"])
 
-        # Survivors need score >= threshold to advance (except last stage)
-        if stage_id < max(stage_ids):
+        # Survivors need score >= stage threshold to advance
+        threshold = SURVIVE_THRESHOLDS.get(stage_id, 0)
+        if stage_id < max(stage_ids) and threshold > 0:
             advancing = []
             for t in active_teams:
                 tid = t["team_id"]
-                if tid in survivor_set and result["scores"].get(tid, 0) >= SURVIVE_THRESHOLD:
+                if tid in survivor_set and result["scores"].get(tid, 0) >= threshold:
                     advancing.append(t)
                 elif tid in survivor_set:
-                    # Survived but didn't reach threshold
                     all_eliminated.append({
                         "team_id": tid,
                         "team_name": t["team_name"],

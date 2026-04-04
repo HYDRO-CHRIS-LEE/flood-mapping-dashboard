@@ -100,8 +100,7 @@ function init_flappy() {
   var adminInfoAlive = document.getElementById('admin-info-alive');
   var adminInfoScore = document.getElementById('admin-info-score');
 
-  var adminEliminationEl = document.getElementById('admin-elimination-list');
-  var adminFinalRanking = document.getElementById('admin-final-ranking');
+  var adminLiveRanking = document.getElementById('admin-live-ranking');
 
   if (!canvas || !ctx) return;
 
@@ -857,8 +856,7 @@ function init_flappy() {
         }
 
         // Clear previous state
-        if (adminEliminationEl) adminEliminationEl.innerHTML = '';
-        if (adminFinalRanking) adminFinalRanking.innerHTML = '';
+        if (adminLiveRanking) adminLiveRanking.innerHTML = '';
 
         // Start replay from stage 1
         startAdminStageReplay();
@@ -1018,26 +1016,67 @@ function init_flappy() {
           stage: stageId,
           color: colorMap[bird.team_id] || TEAM_COLORS[i % TEAM_COLORS.length],
         });
-        renderEliminationList();
       }
     }
+
+    // Update live ranking from current frame's birds
+    updateLiveRanking(frame, stageId);
   }
 
-  function renderEliminationList() {
-    if (!adminEliminationEl) return;
-    if (adminEliminationList.length === 0) {
-      adminEliminationEl.innerHTML = '<p class="text-sm text-on-surface-variant/50 text-center py-4">No eliminations yet</p>';
-      return;
-    }
+  function updateLiveRanking(frame, stageId) {
+    if (!adminLiveRanking || !frame || !frame.birds) return;
 
-    adminEliminationEl.innerHTML = adminEliminationList.map(function(e, i) {
-      var rank = adminEliminationList.length - i;
-      return '<div class="flex items-center gap-3 p-2 rounded-lg border border-surface-container-high">' +
-        '<span class="text-xs font-black text-on-surface-variant/40 w-5 text-right">' + rank + '</span>' +
-        '<div class="w-5 h-5 rounded-full flex-shrink-0" style="background:' + e.color + '"></div>' +
-        '<span class="text-xs font-bold text-on-surface flex-1 truncate">' + e.team_name + '</span>' +
-        '<span class="text-xs text-on-surface-variant">S' + e.stage + '</span>' +
-        '<span class="text-xs font-bold text-on-surface">' + e.score + '</span>' +
+    // Build ranking: alive first (by score desc), then eliminated (by score desc)
+    var alive = [];
+    var dead = [];
+    frame.birds.forEach(function(b) {
+      var entry = {
+        team_id: b.team_id,
+        team_name: b.team_name,
+        score: b.score,
+        alive: b.alive,
+        color: colorMap[b.team_id] || TEAM_COLORS[0],
+      };
+      if (b.alive) alive.push(entry);
+      else dead.push(entry);
+    });
+
+    // Also add previously eliminated teams from earlier stages
+    adminEliminationList.forEach(function(e) {
+      // Skip if already in current frame
+      var inFrame = frame.birds.some(function(b) { return b.team_id === e.team_id; });
+      if (!inFrame) {
+        dead.push({
+          team_id: e.team_id,
+          team_name: e.team_name,
+          score: e.score,
+          alive: false,
+          color: e.color,
+          eliminated_stage: e.stage,
+        });
+      }
+    });
+
+    alive.sort(function(a, b) { return b.score - a.score; });
+    dead.sort(function(a, b) { return b.score - a.score; });
+    var all = alive.concat(dead);
+
+    var medals = ['\u{1F947}', '\u{1F948}', '\u{1F949}'];
+
+    adminLiveRanking.innerHTML = all.map(function(e, i) {
+      var rank = i + 1;
+      var medal = rank <= 3 ? medals[rank - 1] : rank;
+      var statusBadge = e.alive
+        ? '<span class="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">ALIVE</span>'
+        : '<span class="text-[9px] font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded-full">OUT' + (e.eliminated_stage ? ' S' + e.eliminated_stage : '') + '</span>';
+      var opacity = e.alive ? '' : 'opacity-50';
+
+      return '<div class="flex items-center gap-2 py-1.5 px-2 rounded-lg ' + opacity + ' ' + (e.alive ? 'bg-surface-container-low' : '') + '">' +
+        '<span class="text-xs font-black w-5 text-center">' + medal + '</span>' +
+        '<div class="w-4 h-4 rounded-full flex-shrink-0" style="background:' + e.color + '"></div>' +
+        '<span class="text-[11px] font-bold text-on-surface flex-1 truncate">' + e.team_name + '</span>' +
+        '<span class="text-[11px] font-black text-on-surface mr-1">' + e.score + '</span>' +
+        statusBadge +
       '</div>';
     }).join('');
   }
@@ -1070,8 +1109,7 @@ function init_flappy() {
           adminBtnNextStage.textContent = 'Next Stage';
         }
       } else {
-        // All stages done — show final ranking
-        renderFinalRanking();
+        // All stages done — live ranking already shows final state
         if (adminBtnNextStage) adminBtnNextStage.style.display = 'none';
       }
     }

@@ -150,16 +150,15 @@
 
       <!-- Rankings: col 4 -->
       <div class="col-span-12 lg:col-span-4">
-        <!-- Live elimination -->
-        <div class="bg-surface-container-lowest rounded-[2rem] p-6 border border-surface-container-high mb-4">
-          <h4 class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-3">Elimination Order</h4>
-          <div id="admin-elimination-list" class="space-y-2 max-h-64 overflow-y-auto"></div>
-        </div>
-
-        <!-- Final ranking -->
+        <!-- Live ranking (updates in real-time during replay) -->
         <div class="bg-surface-container-lowest rounded-[2rem] p-6 border border-surface-container-high">
-          <h4 class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-3">Final Ranking</h4>
-          <div id="admin-final-ranking" class="space-y-2"></div>
+          <h4 class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-3">
+            <span class="inline-flex items-center gap-1">
+              <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-red-500"></span></span>
+              Live Ranking
+            </span>
+          </h4>
+          <div id="admin-live-ranking" class="space-y-1.5 max-h-[500px] overflow-y-auto"></div>
         </div>
       </div>
     </div>

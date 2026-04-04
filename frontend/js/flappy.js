@@ -1,15 +1,13 @@
-/* Flappy Bird Competition — RF Classifier Deploy */
+/* Flappy Bird Competition — Student Practice + Admin Competition */
 
 function init_flappy() {
   // ── State ───────────────────────────────────────────────────────
   var stages = {};
   var unlockedStages = [];
   var modelStatus = null;
-  var selectedMode = 'practice';
-  var activeLeaderboardStage = 1;
-  var leaderboardInterval = null;
+  var activeMode = 'student'; // 'student' | 'admin'
 
-  // Replay state
+  // Student replay state
   var replayData = null;
   var episodeIdx = 0;
   var frameIdx = 0;
@@ -18,8 +16,22 @@ function init_flappy() {
   var FRAME_INTERVAL = 2;
   var animFrameId = null;
   var holdCount = 0;
+  var lastPlayResult = null;
+  var stageResults = {};
 
-  // Canvas constants
+  // Admin state
+  var adminPw = '';
+  var competitionResult = null;
+  var adminStageIdx = 0;       // index into stage_results array
+  var adminFrameIdx = 0;
+  var adminPlaying = false;
+  var adminFrameTick = 0;
+  var adminAnimFrameId = null;
+  var adminHoldCount = 0;
+  var ADMIN_FRAME_INTERVAL = 2;
+  var adminEliminationList = []; // {team_name, score, stage, rank}
+
+  // Canvas constants (shared)
   var WORLD_W = 420;
   var WORLD_H = 580;
   var GROUND_H = 60;
@@ -28,39 +40,68 @@ function init_flappy() {
   var CANVAS_H = 480;
   var SCALE_X = CANVAS_W / WORLD_W;
   var SCALE_Y = CANVAS_H / WORLD_H;
+  var BIRD_SCREEN_X_RATIO = 0.25;
+
+  // Admin canvas dimensions (separate)
+  var ADMIN_CANVAS_W = 800;
+  var ADMIN_CANVAS_H = 480;
+  var ADMIN_SCALE_X = ADMIN_CANVAS_W / WORLD_W;
+  var ADMIN_SCALE_Y = ADMIN_CANVAS_H / WORLD_H;
 
   var TEAM_COLORS = [
     '#2563eb','#ef4444','#16a34a','#d97706','#8b5cf6',
-    '#06b6d4','#f43f5e','#fb923c','#a3e635','#c084fc'
+    '#06b6d4','#f43f5e','#fb923c','#a3e635','#c084fc',
+    '#14b8a6','#e11d48','#f59e0b','#6366f1','#84cc16',
+    '#0ea5e9','#ec4899','#f97316','#a855f7','#10b981'
   ];
 
-  // ── DOM refs ────────────────────────────────────────────────────
+  // ── DOM refs — Student ──────────────────────────────────────────
+  var tabStudent = document.getElementById('flappy-tab-student');
+  var tabAdmin = document.getElementById('flappy-tab-admin');
+  var studentView = document.getElementById('flappy-student-view');
+  var adminView = document.getElementById('flappy-admin-view');
+
   var canvas = document.getElementById('replay-canvas');
   var ctx = canvas ? canvas.getContext('2d') : null;
   var canvasContainer = document.getElementById('replay-container');
 
   var modelStatusEl = document.getElementById('flappy-model-status');
-  var stageBadgesRow = document.getElementById('flappy-stage-badges');
   var stageSelect = document.getElementById('flappy-stage-select');
-  var modePracticeBtn = document.getElementById('flappy-mode-practice');
-  var modeLeaderboardBtn = document.getElementById('flappy-mode-leaderboard');
   var deployBtn = document.getElementById('flappy-deploy-btn');
   var deployStatus = document.getElementById('flappy-deploy-status');
-  // scoreSummary replaced by flappy-stage-results-grid
 
-  var adminPassword = document.getElementById('flappy-admin-pw');
-  var adminStageSelect = document.getElementById('flappy-admin-stage');
-  var raceBtn = document.getElementById('flappy-race-btn');
-  var raceStatus = document.getElementById('flappy-race-status');
+  var submitCompBtn = document.getElementById('flappy-submit-competition-btn');
+  var submitCompStatus = document.getElementById('flappy-submit-competition-status');
 
   var btnPlay = document.getElementById('flappy-btn-play');
   var btnNext = document.getElementById('flappy-btn-next');
   var overlayStage = document.getElementById('flappy-info-stage');
-  var overlayEpisode = document.getElementById('flappy-info-episode');
   var overlayScore = document.getElementById('flappy-info-score');
 
-  var lbTabsContainer = document.getElementById('flappy-lb-tabs');
-  var lbBody = document.getElementById('flappy-lb-body');
+  // ── DOM refs — Admin ────────────────────────────────────────────
+  var adminLoginPanel = document.getElementById('admin-login-panel');
+  var adminPasswordInput = document.getElementById('admin-password');
+  var adminLoginBtn = document.getElementById('admin-login-btn');
+  var adminLoginError = document.getElementById('admin-login-error');
+
+  var adminCompPanel = document.getElementById('admin-competition-panel');
+  var adminTeamsList = document.getElementById('admin-teams-list');
+  var adminRefreshTeams = document.getElementById('admin-refresh-teams');
+  var adminStartBtn = document.getElementById('admin-start-btn');
+  var adminStartStatus = document.getElementById('admin-start-status');
+
+  var adminCanvas = document.getElementById('admin-replay-canvas');
+  var adminCtx = adminCanvas ? adminCanvas.getContext('2d') : null;
+  var adminCanvasContainer = document.getElementById('admin-replay-container');
+
+  var adminBtnPlay = document.getElementById('admin-btn-play');
+  var adminBtnNextStage = document.getElementById('admin-btn-next-stage');
+  var adminInfoStage = document.getElementById('admin-info-stage');
+  var adminInfoAlive = document.getElementById('admin-info-alive');
+  var adminInfoScore = document.getElementById('admin-info-score');
+
+  var adminEliminationEl = document.getElementById('admin-elimination-list');
+  var adminFinalRanking = document.getElementById('admin-final-ranking');
 
   if (!canvas || !ctx) return;
 
@@ -72,6 +113,27 @@ function init_flappy() {
 
   function teamName() {
     return localStorage.getItem('earthai_name') || 'Student';
+  }
+
+  // ── Mode Tabs ───────────────────────────────────────────────────
+
+  function setActiveMode(mode) {
+    activeMode = mode;
+    var activeClass = 'flex-1 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors bg-primary text-white';
+    var inactiveClass = 'flex-1 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high';
+
+    if (tabStudent) tabStudent.className = mode === 'student' ? activeClass : inactiveClass;
+    if (tabAdmin) tabAdmin.className = mode === 'admin' ? activeClass : inactiveClass;
+
+    if (studentView) studentView.style.display = mode === 'student' ? '' : 'none';
+    if (adminView) adminView.style.display = mode === 'admin' ? '' : 'none';
+  }
+
+  if (tabStudent) {
+    tabStudent.addEventListener('click', function() { setActiveMode('student'); });
+  }
+  if (tabAdmin) {
+    tabAdmin.addEventListener('click', function() { setActiveMode('admin'); });
   }
 
   // ── 1. Check model status ──────────────────────────────────────
@@ -176,12 +238,12 @@ function init_flappy() {
       '</div>';
   }
 
-  // ── 2. Load stages and unlocked ─────────────────────────────────
+  // ── 2. Load stages ─────────────────────────────────────────────
 
   function loadStages() {
     API.get('/flappy/stages').then(function(data) {
       stages = data.stages || {};
-      renderStageSelectors();
+      renderStageSelector();
       loadUnlockedStages();
     }).catch(function(err) {
       console.error('Failed to load flappy stages:', err);
@@ -192,106 +254,34 @@ function init_flappy() {
     var tid = teamId();
     if (!tid) {
       unlockedStages = [1];
-      renderStageBadges();
-      renderStageSelectors();
-      renderLeaderboardTabs();
+      renderStageSelector();
       return;
     }
 
     API.get('/flappy/unlocked/' + encodeURIComponent(tid)).then(function(data) {
       unlockedStages = data || [1];
-      renderStageBadges();
-      renderStageSelectors();
+      renderStageSelector();
       renderStageResultsGrid();
-      renderLeaderboardTabs();
-      fetchLeaderboard();
     }).catch(function(err) {
       console.error('Failed to load unlocked stages:', err);
       unlockedStages = [1];
-      renderStageBadges();
-      renderStageSelectors();
-      renderLeaderboardTabs();
+      renderStageSelector();
     });
   }
 
-  // ── 3. Stage badges ─────────────────────────────────────────────
+  // ── 3. Stage selector ──────────────────────────────────────────
 
-  function renderStageBadges() {
-    if (!stageBadgesRow) return;
+  function renderStageSelector() {
+    if (!stageSelect) return;
     var stageIds = Object.keys(stages).map(Number).sort(function(a, b) { return a - b; });
-    stageBadgesRow.innerHTML = stageIds.map(function(sid) {
-      var s = stages[sid];
-      var isUnlocked = unlockedStages.indexOf(sid) !== -1;
-      var isPassed = unlockedStages.indexOf(sid + 1) !== -1;
-
-      var bgClass, textClass, icon;
-      if (isPassed) {
-        bgClass = 'bg-emerald-50 border-emerald-200';
-        textClass = 'text-emerald-700';
-        icon = 'check_circle';
-      } else if (isUnlocked) {
-        bgClass = 'bg-blue-50 border-primary/20';
-        textClass = 'text-primary';
-        icon = 'lock_open';
-      } else {
-        bgClass = 'bg-slate-50 border-slate-200';
-        textClass = 'text-slate-400';
-        icon = 'lock';
-      }
-
-      return '<div class="flex items-center gap-2 px-4 py-2 rounded-full border ' + bgClass + ' ' + textClass + '">' +
-        '<span class="material-symbols-outlined text-[16px]">' + icon + '</span>' +
-        '<span class="text-xs font-bold uppercase tracking-wider">S' + sid + '</span>' +
-        '<span class="text-xs font-medium">' + (s.label || '') + '</span>' +
-      '</div>';
+    stageSelect.innerHTML = stageIds.filter(function(sid) {
+      return unlockedStages.indexOf(sid) !== -1;
+    }).map(function(sid) {
+      return '<option value="' + sid + '">Stage ' + sid + ' — ' + (stages[sid].label || '') + '</option>';
     }).join('');
   }
 
-  // ── 4. Stage selectors ──────────────────────────────────────────
-
-  function renderStageSelectors() {
-    var stageIds = Object.keys(stages).map(Number).sort(function(a, b) { return a - b; });
-
-    // Deploy stage select — only unlocked
-    if (stageSelect) {
-      stageSelect.innerHTML = stageIds.filter(function(sid) {
-        return unlockedStages.indexOf(sid) !== -1;
-      }).map(function(sid) {
-        return '<option value="' + sid + '">Stage ' + sid + ' — ' + (stages[sid].label || '') + '</option>';
-      }).join('');
-    }
-
-    // Admin stage select — all stages
-    if (adminStageSelect) {
-      adminStageSelect.innerHTML = stageIds.map(function(sid) {
-        return '<option value="' + sid + '">Stage ' + sid + ' — ' + (stages[sid].label || '') + '</option>';
-      }).join('');
-    }
-  }
-
-  // ── 5. Mode toggle ──────────────────────────────────────────────
-
-  function setMode(mode) {
-    selectedMode = mode;
-    if (modePracticeBtn && modeLeaderboardBtn) {
-      if (mode === 'practice') {
-        modePracticeBtn.className = 'flex-1 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors bg-primary text-white';
-        modeLeaderboardBtn.className = 'flex-1 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high';
-      } else {
-        modePracticeBtn.className = 'flex-1 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high';
-        modeLeaderboardBtn.className = 'flex-1 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors bg-primary text-white';
-      }
-    }
-  }
-
-  if (modePracticeBtn) {
-    modePracticeBtn.addEventListener('click', function() { setMode('practice'); });
-  }
-  if (modeLeaderboardBtn) {
-    modeLeaderboardBtn.addEventListener('click', function() { setMode('leaderboard'); });
-  }
-
-  // ── 6. Deploy ───────────────────────────────────────────────────
+  // ── 4. Deploy (Student Practice) ───────────────────────────────
 
   if (deployBtn) {
     deployBtn.addEventListener('click', function() {
@@ -313,19 +303,13 @@ function init_flappy() {
       API.post('/flappy/play', {
         team_id: tid,
         stage_id: stageId,
-        mode: selectedMode,
       }).then(function(data) {
         deployBtn.disabled = false;
         deployBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">smart_toy</span> Deploy My Classifier';
         showDeployStatus('', '');
 
-        // Store result for popup (grid updates after replay ends)
         lastPlayResult = data;
-
-        // Load replay
-        loadReplay(data);
-
-        // Refresh unlocked
+        loadStudentReplay(data);
         loadUnlockedStages();
       }).catch(function(err) {
         deployBtn.disabled = false;
@@ -345,10 +329,50 @@ function init_flappy() {
       '<span class="text-xs font-medium">' + msg + '</span></div>';
   }
 
-  // ── 7. Stage results grid + result popup ─────────────────────────
+  // ── 5. Submit for Competition (Student) ─────────────────────────
 
-  var lastPlayResult = null;
-  var stageResults = {};  // {stage_id: {avg_score, max_score, passed, mode}}
+  if (submitCompBtn) {
+    submitCompBtn.addEventListener('click', function() {
+      var tid = teamId();
+      var tname = teamName();
+      if (!tid) {
+        showSubmitCompStatus('No team ID. Please log in first.', 'error');
+        return;
+      }
+      if (!modelStatus || !modelStatus.has_model) {
+        showSubmitCompStatus('No classifier submitted. Go to the Classifier page first.', 'error');
+        return;
+      }
+
+      submitCompBtn.disabled = true;
+      submitCompBtn.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">hourglass_top</span> Submitting...';
+
+      API.post('/flappy/submit-model', {
+        team_id: tid,
+        team_name: tname,
+      }).then(function(data) {
+        submitCompBtn.disabled = true;
+        submitCompBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">check_circle</span> Submitted';
+        showSubmitCompStatus('Model submitted for competition!', 'success');
+      }).catch(function(err) {
+        submitCompBtn.disabled = false;
+        submitCompBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">emoji_events</span> Submit for Competition';
+        showSubmitCompStatus('Submission failed: ' + err.message, 'error');
+      });
+    });
+  }
+
+  function showSubmitCompStatus(msg, type) {
+    if (!submitCompStatus) return;
+    if (!msg) { submitCompStatus.innerHTML = ''; return; }
+    var color = type === 'success' ? 'text-emerald-600' : 'text-error';
+    var icon = type === 'success' ? 'check_circle' : 'error';
+    submitCompStatus.innerHTML = '<div class="flex items-center gap-2 mt-2 ' + color + '">' +
+      '<span class="material-symbols-outlined text-[16px]">' + icon + '</span>' +
+      '<span class="text-xs font-medium">' + msg + '</span></div>';
+  }
+
+  // ── 6. Stage results grid + result popup ────────────────────────
 
   function renderStageResultsGrid() {
     var grid = document.getElementById('flappy-stage-results-grid');
@@ -357,8 +381,6 @@ function init_flappy() {
     var stageIds = Object.keys(stages).map(Number).sort();
     grid.innerHTML = stageIds.map(function(sid) {
       var r = stageResults[sid];
-      var stageInfo = stages[sid] || {};
-      var passAvg = stageInfo.pass_avg;
 
       if (r) {
         var passedClass = r.passed ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200';
@@ -366,9 +388,7 @@ function init_flappy() {
           ? '<span class="material-symbols-outlined text-emerald-600 text-[14px]">check_circle</span>'
           : '<span class="material-symbols-outlined text-red-500 text-[14px]">cancel</span>';
         var scoreColor = r.passed ? 'text-emerald-700' : 'text-red-600';
-        var modeLabel = r.mode === 'leaderboard' ? 'LB' : 'PR';
 
-        // Episode scores as small pills
         var scoresHtml = '';
         if (r.scores && r.scores.length > 0) {
           scoresHtml = '<div class="flex flex-wrap gap-1 mt-2">' +
@@ -383,7 +403,6 @@ function init_flappy() {
           '<div class="flex items-center gap-2">' +
             passedIcon +
             '<span class="text-xs font-bold text-on-surface flex-1">Stage ' + sid + '</span>' +
-            '<span class="text-[10px] text-on-surface-variant font-medium">' + modeLabel + '</span>' +
             '<span class="text-sm font-black ' + scoreColor + ' tracking-tighter ml-1">' + r.avg_score + '</span>' +
           '</div>' +
           scoresHtml +
@@ -409,7 +428,6 @@ function init_flappy() {
       max_score: s.max_score,
       scores: s.scores || [],
       passed: s.passed,
-      mode: data.mode || selectedMode,
     };
     renderStageResultsGrid();
   }
@@ -451,10 +469,8 @@ function init_flappy() {
         '</div>' +
       '</div>';
 
-    // Show modal
     modal.classList.remove('hidden');
 
-    // Close handler
     function closeModal() {
       modal.classList.add('hidden');
       if (closeBtn) closeBtn.removeEventListener('click', closeModal);
@@ -465,98 +481,11 @@ function init_flappy() {
     });
   }
 
-  function saveToLeaderboard() {
-    if (!lastPlayResult || !lastPlayResult.summary) return;
-    var s = lastPlayResult.summary;
-    var saveLbBtn = document.getElementById('flappy-save-lb-btn');
-    var saveLbStatus = document.getElementById('flappy-save-lb-status');
+  // ══════════════════════════════════════════════════════════════════
+  //  STUDENT CANVAS REPLAY
+  // ══════════════════════════════════════════════════════════════════
 
-    if (saveLbBtn) {
-      saveLbBtn.disabled = true;
-      saveLbBtn.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">hourglass_top</span> Saving...';
-    }
-
-    API.post('/flappy/save-result', {
-      team_id: teamId(),
-      team_name: teamName(),
-      stage_id: lastPlayResult.stage_id,
-      avg_score: s.avg_score,
-      max_score: s.max_score,
-      episode_scores: s.scores || [],
-      passed: s.passed,
-    }).then(function() {
-      if (saveLbBtn) {
-        saveLbBtn.disabled = true;
-        saveLbBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">check_circle</span> Saved';
-        saveLbBtn.className = saveLbBtn.className.replace('bg-primary', 'bg-emerald-600').replace('shadow-primary/20', 'shadow-emerald-600/20');
-      }
-      if (saveLbStatus) {
-        saveLbStatus.innerHTML = '<p class="text-xs text-emerald-600 font-medium mt-2 text-center">Result saved to leaderboard!</p>';
-      }
-      fetchLeaderboard();
-    }).catch(function(err) {
-      if (saveLbBtn) {
-        saveLbBtn.disabled = false;
-        saveLbBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">leaderboard</span> Save to Leaderboard';
-      }
-      if (saveLbStatus) {
-        saveLbStatus.innerHTML = '<p class="text-xs text-error font-medium mt-2 text-center">Save failed: ' + err.message + '</p>';
-      }
-    });
-  }
-
-  // ── 8. Admin Race ───────────────────────────────────────────────
-
-  if (raceBtn) {
-    raceBtn.addEventListener('click', function() {
-      if (!adminPassword || !adminStageSelect) return;
-      var pw = adminPassword.value.trim();
-      var stageId = parseInt(adminStageSelect.value);
-
-      if (!pw) {
-        showRaceStatus('Enter admin password.', 'error');
-        return;
-      }
-
-      raceBtn.disabled = true;
-      raceBtn.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">hourglass_top</span> Racing...';
-
-      API.post('/flappy/race', {
-        stage_id: stageId,
-        admin_password: pw,
-      }).then(function(data) {
-        raceBtn.disabled = false;
-        raceBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">flag</span> Start Race';
-        showRaceStatus('Race complete! Replay loaded.', 'success');
-
-        // Load replay
-        if (data.replay) {
-          loadReplay(data.replay);
-        }
-
-        // Refresh leaderboard + unlocked stages
-        loadUnlockedStages();
-        fetchLeaderboard();
-      }).catch(function(err) {
-        raceBtn.disabled = false;
-        raceBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">flag</span> Start Race';
-        showRaceStatus('Race failed: ' + err.message, 'error');
-      });
-    });
-  }
-
-  function showRaceStatus(msg, type) {
-    if (!raceStatus) return;
-    var color = type === 'success' ? 'text-emerald-400' : 'text-red-400';
-    var icon = type === 'success' ? 'check_circle' : 'error';
-    raceStatus.innerHTML = '<div class="flex items-center gap-2 mt-3 ' + color + '">' +
-      '<span class="material-symbols-outlined text-[16px]">' + icon + '</span>' +
-      '<span class="text-xs font-medium">' + msg + '</span></div>';
-  }
-
-  // ── 9. Canvas Replay Viewer ─────────────────────────────────────
-
-  function resizeCanvas() {
+  function resizeStudentCanvas() {
     if (!canvasContainer || !canvas) return;
     var w = canvasContainer.clientWidth;
     var h = canvasContainer.clientHeight || Math.round(w * 3 / 5);
@@ -566,30 +495,26 @@ function init_flappy() {
     CANVAS_H = h;
     SCALE_X = CANVAS_W / WORLD_W;
     SCALE_Y = CANVAS_H / WORLD_H;
-    renderFrame();
+    renderStudentFrame();
   }
 
-  window.addEventListener('resize', resizeCanvas);
-
-  function loadReplay(replay) {
+  function loadStudentReplay(replay) {
     replayData = replay;
     episodeIdx = 0;
     frameIdx = 0;
     playing = true;
     holdCount = 0;
 
-    // Read world dimensions from replay if available
     WORLD_W = replay.world_width || 420;
     WORLD_H = replay.world_height || 580;
     GROUND_H = replay.ground_height || 60;
 
-    resizeCanvas();
+    resizeStudentCanvas();
     if (btnPlay) btnPlay.textContent = 'Pause';
-    renderFrame();
+    renderStudentFrame();
 
-    // Cancel any prior animation
     if (animFrameId) cancelAnimationFrame(animFrameId);
-    animFrameId = requestAnimationFrame(tick);
+    animFrameId = requestAnimationFrame(studentTick);
   }
 
   function currentEpisode() {
@@ -597,108 +522,120 @@ function init_flappy() {
     return replayData.episodes[episodeIdx] || null;
   }
 
-  function drawBackground() {
-    var grd = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
+  // ── Shared drawing primitives ───────────────────────────────────
+
+  function drawBackground(c, cw, ch) {
+    var grd = c.createLinearGradient(0, 0, 0, ch);
     grd.addColorStop(0, '#0e1117');
     grd.addColorStop(1, '#1a1f2e');
-    ctx.fillStyle = grd;
-    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    c.fillStyle = grd;
+    c.fillRect(0, 0, cw, ch);
   }
 
-  function drawGround() {
-    var gy = CANVAS_H - (GROUND_H * SCALE_Y);
-    ctx.fillStyle = '#1e2533';
-    ctx.fillRect(0, gy, CANVAS_W, CANVAS_H - gy);
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, gy);
-    ctx.lineTo(CANVAS_W, gy);
-    ctx.stroke();
+  function drawGround(c, cw, ch, scY, groundH) {
+    var gy = ch - (groundH * scY);
+    c.fillStyle = '#1e2533';
+    c.fillRect(0, gy, cw, ch - gy);
+    c.strokeStyle = 'rgba(255,255,255,0.06)';
+    c.lineWidth = 1;
+    c.beginPath();
+    c.moveTo(0, gy);
+    c.lineTo(cw, gy);
+    c.stroke();
   }
 
-  // Bird is drawn at a fixed screen X (25% from left). Camera follows bird_x.
-  var BIRD_SCREEN_X_RATIO = 0.25;
-
-  function drawPipeAtScreenX(screenX, gapY, gapSize) {
-    var sw = PIPE_WIDTH * SCALE_X;
-    var sgapY = gapY * SCALE_Y;
-    var sgapSize = gapSize * SCALE_Y;
+  function drawPipeAtScreenX(c, screenX, gapY, gapSize, scX, scY, ch) {
+    var sw = PIPE_WIDTH * scX;
+    var sgapY = gapY * scY;
+    var sgapSize = gapSize * scY;
     var capH = 8;
 
     var topBottom = sgapY - sgapSize / 2;
     var botTop = sgapY + sgapSize / 2;
 
     // Top pipe
-    ctx.fillStyle = '#22c55e';
-    ctx.fillRect(screenX, 0, sw, topBottom);
-    ctx.fillStyle = '#15803d';
-    ctx.fillRect(screenX - 3, topBottom - capH, sw + 6, capH);
+    c.fillStyle = '#22c55e';
+    c.fillRect(screenX, 0, sw, topBottom);
+    c.fillStyle = '#15803d';
+    c.fillRect(screenX - 3, topBottom - capH, sw + 6, capH);
 
     // Bottom pipe
-    ctx.fillStyle = '#22c55e';
-    ctx.fillRect(screenX, botTop, sw, CANVAS_H - botTop);
-    ctx.fillStyle = '#15803d';
-    ctx.fillRect(screenX - 3, botTop, sw + 6, capH);
+    c.fillStyle = '#22c55e';
+    c.fillRect(screenX, botTop, sw, ch - botTop);
+    c.fillStyle = '#15803d';
+    c.fillRect(screenX - 3, botTop, sw + 6, capH);
   }
 
-  function drawBirdAtScreenPos(screenX, screenY, alive, score) {
-    var radius = 12;
-    var color = TEAM_COLORS[0];
+  function drawPipes(c, pipeMap, cameraX, worldW, scX, scY, cw, ch) {
+    var viewLeft = cameraX - 50;
+    var viewRight = cameraX + worldW + 50;
+    for (var i = 0; i < pipeMap.length; i++) {
+      var pipe = pipeMap[i];
+      if (pipe.world_x >= viewLeft && pipe.world_x <= viewRight) {
+        var pipeScreenX = (pipe.world_x - cameraX) * scX;
+        drawPipeAtScreenX(c, pipeScreenX, pipe.gap_y, pipe.gap_size, scX, scY, ch);
+      }
+    }
+  }
 
-    ctx.save();
-    ctx.globalAlpha = alive ? 1.0 : 0.4;
+  function drawBird(c, screenX, screenY, alive, score, color, name) {
+    var radius = 12;
+
+    c.save();
+    c.globalAlpha = alive ? 1.0 : 0.3;
 
     // Body
-    ctx.beginPath();
-    ctx.arc(screenX, screenY, radius, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
+    c.beginPath();
+    c.arc(screenX, screenY, radius, 0, Math.PI * 2);
+    c.fillStyle = color;
+    c.fill();
+    c.strokeStyle = 'rgba(0,0,0,0.3)';
+    c.lineWidth = 1.5;
+    c.stroke();
 
     // Eye
-    ctx.beginPath();
-    ctx.arc(screenX + 4, screenY - 3, 4, 0, Math.PI * 2);
-    ctx.fillStyle = '#ffffff';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(screenX + 5, screenY - 3, 2, 0, Math.PI * 2);
-    ctx.fillStyle = '#0f172a';
-    ctx.fill();
+    c.beginPath();
+    c.arc(screenX + 4, screenY - 3, 4, 0, Math.PI * 2);
+    c.fillStyle = '#ffffff';
+    c.fill();
+    c.beginPath();
+    c.arc(screenX + 5, screenY - 3, 2, 0, Math.PI * 2);
+    c.fillStyle = '#0f172a';
+    c.fill();
 
     // Dead marker
     if (!alive) {
-      ctx.strokeStyle = '#ef4444';
-      ctx.lineWidth = 3;
-      ctx.lineCap = 'round';
+      c.strokeStyle = '#ef4444';
+      c.lineWidth = 3;
+      c.lineCap = 'round';
       var xOff = 10;
-      ctx.beginPath();
-      ctx.moveTo(screenX - xOff, screenY - xOff);
-      ctx.lineTo(screenX + xOff, screenY + xOff);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(screenX + xOff, screenY - xOff);
-      ctx.lineTo(screenX - xOff, screenY + xOff);
-      ctx.stroke();
+      c.beginPath();
+      c.moveTo(screenX - xOff, screenY - xOff);
+      c.lineTo(screenX + xOff, screenY + xOff);
+      c.stroke();
+      c.beginPath();
+      c.moveTo(screenX + xOff, screenY - xOff);
+      c.lineTo(screenX - xOff, screenY + xOff);
+      c.stroke();
     }
 
     // Team name above
-    ctx.font = '600 10px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = color;
-    ctx.fillText(teamName(), screenX, screenY - radius - 14);
+    c.font = '600 10px Inter, sans-serif';
+    c.textAlign = 'center';
+    c.fillStyle = color;
+    c.fillText(name || '', screenX, screenY - radius - 14);
 
     // Score below
-    ctx.font = '500 10px Inter, sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.fillText('Score: ' + score, screenX, screenY + radius + 14);
+    c.font = '500 10px Inter, sans-serif';
+    c.fillStyle = 'rgba(255,255,255,0.7)';
+    c.fillText('Score: ' + score, screenX, screenY + radius + 14);
 
-    ctx.restore();
+    c.restore();
   }
 
-  function renderFrame() {
+  // ── Student frame render ────────────────────────────────────────
+
+  function renderStudentFrame() {
     if (!replayData || !ctx) return;
 
     var ep = currentEpisode();
@@ -710,45 +647,27 @@ function init_flappy() {
     var birdWorldX = frame.bird_x || 0;
     var birdWorldY = frame.bird_y || 0;
 
-    // Camera: bird stays at fixed screen X, world scrolls
     var birdScreenX = CANVAS_W * BIRD_SCREEN_X_RATIO;
     var cameraX = birdWorldX - (birdScreenX / SCALE_X);
 
-    drawBackground();
+    drawBackground(ctx, CANVAS_W, CANVAS_H);
 
-    // Draw ALL pipes from pipe_map (visible ones only)
     var pipeMap = ep.pipe_map || [];
-    var viewLeft = cameraX - 50;
-    var viewRight = cameraX + WORLD_W + 50;
+    drawPipes(ctx, pipeMap, cameraX, WORLD_W, SCALE_X, SCALE_Y, CANVAS_W, CANVAS_H);
 
-    for (var i = 0; i < pipeMap.length; i++) {
-      var pipe = pipeMap[i];
-      if (pipe.world_x >= viewLeft && pipe.world_x <= viewRight) {
-        var pipeScreenX = (pipe.world_x - cameraX) * SCALE_X;
-        drawPipeAtScreenX(pipeScreenX, pipe.gap_y, pipe.gap_size);
-      }
-    }
+    drawGround(ctx, CANVAS_W, CANVAS_H, SCALE_Y, GROUND_H);
 
-    drawGround();
-
-    // Bird at fixed screen X
     var birdScreenY = birdWorldY * SCALE_Y;
-    drawBirdAtScreenPos(birdScreenX, birdScreenY, frame.alive, frame.score);
+    drawBird(ctx, birdScreenX, birdScreenY, frame.alive, frame.score, TEAM_COLORS[0], teamName());
 
-    updateOverlay(frame, ep);
-  }
-
-  function updateOverlay(frame, ep) {
+    // Update overlay
     var stageId = replayData.stage_id != null ? replayData.stage_id : '--';
-    var totalEpisodes = replayData.episodes ? replayData.episodes.length : 0;
-
     if (overlayStage) overlayStage.textContent = stageId;
-    if (overlayEpisode) overlayEpisode.textContent = (episodeIdx + 1) + ' / ' + totalEpisodes;
     if (overlayScore) overlayScore.textContent = frame.score;
   }
 
-  function tick() {
-    animFrameId = requestAnimationFrame(tick);
+  function studentTick() {
+    animFrameId = requestAnimationFrame(studentTick);
 
     if (!playing || !replayData) return;
 
@@ -762,7 +681,7 @@ function init_flappy() {
     if (frameIdx < ep.frames.length - 1) {
       frameIdx++;
     } else {
-      // Episode finished — check if more episodes
+      // Episode finished
       if (episodeIdx < replayData.episodes.length - 1) {
         holdCount++;
         if (holdCount >= 30) {
@@ -771,7 +690,7 @@ function init_flappy() {
           frameIdx = 0;
         }
       } else {
-        // All episodes done — stop, update grid, show popup
+        // All episodes done
         playing = false;
         if (btnPlay) btnPlay.textContent = 'Play';
         if (lastPlayResult) {
@@ -781,47 +700,38 @@ function init_flappy() {
       }
     }
 
-    renderFrame();
+    renderStudentFrame();
   }
 
-  function advanceEpisode() {
-    if (!replayData) return;
-    if (episodeIdx < replayData.episodes.length - 1) {
-      episodeIdx++;
-    } else {
-      episodeIdx = 0;
-    }
-    frameIdx = 0;
-  }
-
-  // Play/Pause
+  // Play/Pause (student)
   if (btnPlay) {
     btnPlay.addEventListener('click', function() {
       playing = !playing;
       btnPlay.textContent = playing ? 'Pause' : 'Play';
-      if (playing) renderFrame();
+      if (playing) renderStudentFrame();
     });
   }
 
-  // Next Episode
+  // Next Episode (student)
   if (btnNext) {
     btnNext.addEventListener('click', function() {
+      if (!replayData) return;
       holdCount = 0;
-      advanceEpisode();
+      if (episodeIdx < replayData.episodes.length - 1) {
+        episodeIdx++;
+      } else {
+        episodeIdx = 0;
+      }
       frameIdx = 0;
-      renderFrame();
+      renderStudentFrame();
     });
   }
 
-  // Draw idle canvas
+  // Idle canvas (student)
   function drawIdleCanvas() {
     if (!ctx) return;
-    resizeCanvas();
-    var grd = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
-    grd.addColorStop(0, '#0e1117');
-    grd.addColorStop(1, '#1a1f2e');
-    ctx.fillStyle = grd;
-    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    resizeStudentCanvas();
+    drawBackground(ctx, CANVAS_W, CANVAS_H);
 
     ctx.fillStyle = '#64748b';
     ctx.font = '500 14px Inter, sans-serif';
@@ -829,84 +739,404 @@ function init_flappy() {
     ctx.fillText('Deploy your classifier to see replay here', CANVAS_W / 2, CANVAS_H / 2 - 10);
     ctx.font = '400 12px Inter, sans-serif';
     ctx.fillStyle = '#475569';
-    ctx.fillText('Select a stage, choose a mode, and click Deploy', CANVAS_W / 2, CANVAS_H / 2 + 14);
+    ctx.fillText('Select a stage and click Deploy', CANVAS_W / 2, CANVAS_H / 2 + 14);
   }
 
-  // ── 10. Leaderboard ─────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+  //  ADMIN MODE
+  // ══════════════════════════════════════════════════════════════════
 
-  function renderLeaderboardTabs() {
-    if (!lbTabsContainer) return;
-    var stageIds = Object.keys(stages).map(Number).sort(function(a, b) { return a - b; });
-    lbTabsContainer.innerHTML = stageIds.map(function(sid) {
-      var active = sid === activeLeaderboardStage;
-      var cls = active
-        ? 'bg-primary text-white'
-        : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high';
-      return '<button data-lb-stage="' + sid + '" class="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors ' + cls + '">S' + sid + '</button>';
-    }).join('');
+  // ── Admin Login ─────────────────────────────────────────────────
 
-    // Wire clicks
-    var btns = lbTabsContainer.querySelectorAll('button[data-lb-stage]');
-    for (var i = 0; i < btns.length; i++) {
-      btns[i].addEventListener('click', function() {
-        activeLeaderboardStage = parseInt(this.getAttribute('data-lb-stage'));
-        renderLeaderboardTabs();
-        fetchLeaderboard();
-      });
-    }
-  }
-
-  function fetchLeaderboard() {
-    API.get('/leaderboard/flappy/' + activeLeaderboardStage).then(function(entries) {
-      renderLeaderboard(entries);
-    }).catch(function(err) {
-      console.error('Flappy leaderboard fetch error:', err);
+  if (adminLoginBtn) {
+    adminLoginBtn.addEventListener('click', function() {
+      var pw = adminPasswordInput ? adminPasswordInput.value.trim() : '';
+      if (!pw) {
+        if (adminLoginError) adminLoginError.textContent = 'Please enter the admin password.';
+        return;
+      }
+      adminPw = pw;
+      if (adminLoginError) adminLoginError.textContent = '';
+      if (adminLoginPanel) adminLoginPanel.style.display = 'none';
+      if (adminCompPanel) adminCompPanel.style.display = '';
+      fetchSubmittedTeams();
     });
   }
 
-  function renderLeaderboard(entries) {
-    if (!lbBody) return;
-    if (!entries || entries.length === 0) {
-      lbBody.innerHTML = '<div class="text-center py-8 text-on-surface-variant text-sm">No submissions for this stage yet</div>';
+  // ── Submitted Teams ─────────────────────────────────────────────
+
+  function fetchSubmittedTeams() {
+    API.get('/flappy/submitted-teams').then(function(teams) {
+      renderSubmittedTeams(teams);
+    }).catch(function(err) {
+      console.error('Failed to fetch submitted teams:', err);
+      if (adminTeamsList) {
+        adminTeamsList.innerHTML = '<p class="text-sm text-error">Failed to load teams: ' + err.message + '</p>';
+      }
+    });
+  }
+
+  function renderSubmittedTeams(teams) {
+    if (!adminTeamsList) return;
+    if (!teams || teams.length === 0) {
+      adminTeamsList.innerHTML = '<p class="text-sm text-on-surface-variant">No teams have submitted yet.</p>';
       return;
     }
 
-    var myTeam = teamName();
-    var myTeamId = teamId();
-    lbBody.innerHTML = entries.map(function(e, i) {
-      var rank = i + 1;
-      var isMe = e.team_id === myTeamId;
-      var bgClass = isMe ? 'bg-blue-50 border-primary/20' : 'bg-white border-slate-100';
-      var displayName = isMe ? (localStorage.getItem('earthai_name') || e.team_name) : e.team_name;
-      var initial = (displayName || '?').charAt(0).toUpperCase();
+    adminTeamsList.innerHTML = teams.map(function(t, i) {
       var color = TEAM_COLORS[i % TEAM_COLORS.length];
-      var passedBadge = e.passed
-        ? '<span class="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full uppercase">Passed</span>'
-        : '';
-
-      return '<div class="flex items-center gap-3 p-3 rounded-2xl border ' + bgClass + '">' +
-        '<span class="text-lg font-black w-6 italic ' + (rank <= 3 ? 'text-primary/40' : 'text-slate-300') + '">' + (rank < 10 ? '0' : '') + rank + '</span>' +
+      var initial = ((t.team_name || '?').charAt(0)).toUpperCase();
+      return '<div class="flex items-center gap-3 p-3 rounded-xl border border-surface-container-high bg-surface-container-low">' +
         '<div class="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0" style="background:' + color + '">' + initial + '</div>' +
         '<div class="flex-1 min-w-0">' +
-          '<p class="text-sm font-bold text-on-surface truncate">' + displayName + (isMe ? ' <span class="text-[10px] text-primary font-bold">(you)</span>' : '') + '</p>' +
-          '<p class="text-[10px] text-on-surface-variant">Avg: ' + (e.avg_score != null ? e.avg_score.toFixed(1) : '--') + ' | Max: ' + (e.max_score != null ? e.max_score.toFixed(1) : '--') + '</p>' +
-        '</div>' +
-        '<div class="text-right flex flex-col items-end gap-1">' +
-          '<p class="font-black text-on-surface tracking-tighter">' + (e.avg_score != null ? e.avg_score.toFixed(1) : '--') + '</p>' +
-          passedBadge +
+          '<p class="text-sm font-bold text-on-surface truncate">' + (t.team_name || t.team_id) + '</p>' +
+          '<p class="text-[10px] text-on-surface-variant">' + (t.team_id || '') + '</p>' +
         '</div>' +
       '</div>';
     }).join('');
   }
 
-  // Poll leaderboard every 5 seconds
-  leaderboardInterval = setInterval(fetchLeaderboard, 5000);
+  if (adminRefreshTeams) {
+    adminRefreshTeams.addEventListener('click', function() {
+      fetchSubmittedTeams();
+    });
+  }
 
-  // Clean up interval when page navigates away
+  // ── Start Competition ───────────────────────────────────────────
+
+  if (adminStartBtn) {
+    adminStartBtn.addEventListener('click', function() {
+      adminStartBtn.disabled = true;
+      adminStartBtn.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">hourglass_top</span> Running Competition...';
+      if (adminStartStatus) adminStartStatus.innerHTML = '';
+
+      API.post('/flappy/competition', {
+        admin_password: adminPw,
+      }).then(function(data) {
+        adminStartBtn.disabled = false;
+        adminStartBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">flag</span> Start Competition';
+
+        competitionResult = data;
+        adminStageIdx = 0;
+        adminEliminationList = [];
+
+        if (adminStartStatus) {
+          adminStartStatus.innerHTML = '<div class="flex items-center gap-2 mt-2 text-emerald-600">' +
+            '<span class="material-symbols-outlined text-[16px]">check_circle</span>' +
+            '<span class="text-xs font-medium">Competition complete! ' + data.total_teams + ' teams, ' + data.stages_played + ' stages. Replay loaded.</span>' +
+          '</div>';
+        }
+
+        // Clear previous state
+        if (adminEliminationEl) adminEliminationEl.innerHTML = '';
+        if (adminFinalRanking) adminFinalRanking.innerHTML = '';
+
+        // Start replay from stage 1
+        startAdminStageReplay();
+      }).catch(function(err) {
+        adminStartBtn.disabled = false;
+        adminStartBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">flag</span> Start Competition';
+        if (adminStartStatus) {
+          adminStartStatus.innerHTML = '<div class="flex items-center gap-2 mt-2 text-error">' +
+            '<span class="material-symbols-outlined text-[16px]">error</span>' +
+            '<span class="text-xs font-medium">Competition failed: ' + err.message + '</span>' +
+          '</div>';
+        }
+      });
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  ADMIN CANVAS REPLAY (Multi-Bird)
+  // ══════════════════════════════════════════════════════════════════
+
+  function resizeAdminCanvas() {
+    if (!adminCanvasContainer || !adminCanvas) return;
+    var w = adminCanvasContainer.clientWidth;
+    var h = adminCanvasContainer.clientHeight || Math.round(w * 3 / 5);
+    adminCanvas.width = w;
+    adminCanvas.height = h;
+    ADMIN_CANVAS_W = w;
+    ADMIN_CANVAS_H = h;
+    ADMIN_SCALE_X = ADMIN_CANVAS_W / WORLD_W;
+    ADMIN_SCALE_Y = ADMIN_CANVAS_H / WORLD_H;
+    renderAdminFrame();
+  }
+
+  function getCurrentAdminStage() {
+    if (!competitionResult || !competitionResult.stage_results) return null;
+    return competitionResult.stage_results[adminStageIdx] || null;
+  }
+
+  function getCurrentAdminReplay() {
+    if (!competitionResult || !competitionResult.replay) return null;
+    var stageInfo = getCurrentAdminStage();
+    if (!stageInfo) return null;
+    var stageKey = String(stageInfo.stage_id);
+    return competitionResult.replay[stageKey] || null;
+  }
+
+  function startAdminStageReplay() {
+    var replay = getCurrentAdminReplay();
+    if (!replay || !replay.frames || replay.frames.length === 0) return;
+
+    adminFrameIdx = 0;
+    adminPlaying = true;
+    adminHoldCount = 0;
+
+    // Read world dims from replay if available
+    if (replay.world_width) WORLD_W = replay.world_width;
+    if (replay.world_height) WORLD_H = replay.world_height;
+    if (replay.ground_height) GROUND_H = replay.ground_height;
+
+    resizeAdminCanvas();
+    if (adminBtnPlay) adminBtnPlay.textContent = 'Pause';
+    if (adminBtnNextStage) adminBtnNextStage.style.display = 'none';
+    renderAdminFrame();
+
+    if (adminAnimFrameId) cancelAnimationFrame(adminAnimFrameId);
+    adminAnimFrameId = requestAnimationFrame(adminTick);
+  }
+
+  // Build a team->color map for consistent coloring
+  function buildTeamColorMap() {
+    if (!competitionResult || !competitionResult.final_ranking) return {};
+    var map = {};
+    for (var i = 0; i < competitionResult.final_ranking.length; i++) {
+      map[competitionResult.final_ranking[i].team_id] = TEAM_COLORS[i % TEAM_COLORS.length];
+    }
+    return map;
+  }
+
+  function renderAdminFrame() {
+    if (!adminCtx || !competitionResult) return;
+
+    var replay = getCurrentAdminReplay();
+    if (!replay || !replay.frames || replay.frames.length === 0) return;
+
+    var frame = replay.frames[adminFrameIdx];
+    if (!frame) return;
+
+    var birds = frame.birds || [];
+    var pipeMap = replay.pipe_map || [];
+    var gapSize = replay.gap_size || 130;
+
+    // Find leading alive bird for camera
+    var leadingX = frame.bird_x || 0;
+    var leadingScore = 0;
+    var aliveCount = 0;
+    for (var b = 0; b < birds.length; b++) {
+      if (birds[b].alive) {
+        aliveCount++;
+        if (birds[b].score > leadingScore) {
+          leadingScore = birds[b].score;
+        }
+      }
+    }
+
+    var birdScreenX = ADMIN_CANVAS_W * BIRD_SCREEN_X_RATIO;
+    var cameraX = leadingX - (birdScreenX / ADMIN_SCALE_X);
+
+    drawBackground(adminCtx, ADMIN_CANVAS_W, ADMIN_CANVAS_H);
+    drawPipes(adminCtx, pipeMap, cameraX, WORLD_W, ADMIN_SCALE_X, ADMIN_SCALE_Y, ADMIN_CANVAS_W, ADMIN_CANVAS_H);
+    drawGround(adminCtx, ADMIN_CANVAS_W, ADMIN_CANVAS_H, ADMIN_SCALE_Y, GROUND_H);
+
+    // Draw each bird
+    var colorMap = buildTeamColorMap();
+    for (var i = 0; i < birds.length; i++) {
+      var bird = birds[i];
+      var color = colorMap[bird.team_id] || TEAM_COLORS[i % TEAM_COLORS.length];
+      var birdY = bird.y * ADMIN_SCALE_Y;
+      drawBird(adminCtx, birdScreenX, birdY, bird.alive, bird.score, color, bird.team_name);
+    }
+
+    // Overlay: stage, alive count, leading score
+    var stageInfo = getCurrentAdminStage();
+    if (adminInfoStage) adminInfoStage.textContent = stageInfo ? stageInfo.stage_id : '--';
+    if (adminInfoAlive) adminInfoAlive.textContent = aliveCount + ' / ' + birds.length;
+    if (adminInfoScore) adminInfoScore.textContent = leadingScore;
+
+    // Stage + alive + score on canvas
+    adminCtx.save();
+    adminCtx.font = '700 14px Inter, sans-serif';
+    adminCtx.textAlign = 'left';
+    adminCtx.fillStyle = 'rgba(255,255,255,0.8)';
+    adminCtx.fillText('Stage ' + (stageInfo ? stageInfo.stage_id : '?'), 16, 28);
+    adminCtx.font = '500 12px Inter, sans-serif';
+    adminCtx.fillStyle = 'rgba(255,255,255,0.6)';
+    adminCtx.fillText('Alive: ' + aliveCount + '/' + birds.length + '   |   Top Score: ' + leadingScore, 16, 48);
+    adminCtx.restore();
+  }
+
+  // Track which birds have been added to elimination list
+  var eliminatedSet = {};
+
+  function updateEliminationDuringReplay(frame) {
+    if (!frame || !frame.birds) return;
+    var stageInfo = getCurrentAdminStage();
+    var stageId = stageInfo ? stageInfo.stage_id : '?';
+    var colorMap = buildTeamColorMap();
+
+    for (var i = 0; i < frame.birds.length; i++) {
+      var bird = frame.birds[i];
+      var key = bird.team_id + '_' + stageId;
+      if (!bird.alive && !eliminatedSet[key]) {
+        eliminatedSet[key] = true;
+        adminEliminationList.unshift({
+          team_name: bird.team_name,
+          team_id: bird.team_id,
+          score: bird.score,
+          stage: stageId,
+          color: colorMap[bird.team_id] || TEAM_COLORS[i % TEAM_COLORS.length],
+        });
+        renderEliminationList();
+      }
+    }
+  }
+
+  function renderEliminationList() {
+    if (!adminEliminationEl) return;
+    if (adminEliminationList.length === 0) {
+      adminEliminationEl.innerHTML = '<p class="text-sm text-on-surface-variant/50 text-center py-4">No eliminations yet</p>';
+      return;
+    }
+
+    adminEliminationEl.innerHTML = adminEliminationList.map(function(e, i) {
+      var rank = adminEliminationList.length - i;
+      return '<div class="flex items-center gap-3 p-2 rounded-lg border border-surface-container-high">' +
+        '<span class="text-xs font-black text-on-surface-variant/40 w-5 text-right">' + rank + '</span>' +
+        '<div class="w-5 h-5 rounded-full flex-shrink-0" style="background:' + e.color + '"></div>' +
+        '<span class="text-xs font-bold text-on-surface flex-1 truncate">' + e.team_name + '</span>' +
+        '<span class="text-xs text-on-surface-variant">S' + e.stage + '</span>' +
+        '<span class="text-xs font-bold text-on-surface">' + e.score + '</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  function adminTick() {
+    adminAnimFrameId = requestAnimationFrame(adminTick);
+
+    if (!adminPlaying || !competitionResult) return;
+
+    adminFrameTick++;
+    if (adminFrameTick < ADMIN_FRAME_INTERVAL) return;
+    adminFrameTick = 0;
+
+    var replay = getCurrentAdminReplay();
+    if (!replay || !replay.frames) return;
+
+    if (adminFrameIdx < replay.frames.length - 1) {
+      adminFrameIdx++;
+      var frame = replay.frames[adminFrameIdx];
+      updateEliminationDuringReplay(frame);
+    } else {
+      // Stage replay finished
+      adminPlaying = false;
+      if (adminBtnPlay) adminBtnPlay.textContent = 'Play';
+
+      // Check if more stages
+      if (adminStageIdx < competitionResult.stage_results.length - 1) {
+        if (adminBtnNextStage) {
+          adminBtnNextStage.style.display = '';
+          adminBtnNextStage.textContent = 'Next Stage';
+        }
+      } else {
+        // All stages done — show final ranking
+        renderFinalRanking();
+        if (adminBtnNextStage) adminBtnNextStage.style.display = 'none';
+      }
+    }
+
+    renderAdminFrame();
+  }
+
+  // Admin Play/Pause
+  if (adminBtnPlay) {
+    adminBtnPlay.addEventListener('click', function() {
+      adminPlaying = !adminPlaying;
+      adminBtnPlay.textContent = adminPlaying ? 'Pause' : 'Play';
+      if (adminPlaying) renderAdminFrame();
+    });
+  }
+
+  // Admin Next Stage
+  if (adminBtnNextStage) {
+    adminBtnNextStage.addEventListener('click', function() {
+      if (!competitionResult) return;
+      if (adminStageIdx < competitionResult.stage_results.length - 1) {
+        adminStageIdx++;
+        startAdminStageReplay();
+      }
+    });
+  }
+
+  // ── Final Ranking ───────────────────────────────────────────────
+
+  function renderFinalRanking() {
+    if (!adminFinalRanking || !competitionResult || !competitionResult.final_ranking) return;
+
+    var ranking = competitionResult.final_ranking;
+    var medals = ['', '', ''];
+
+    adminFinalRanking.innerHTML =
+      '<p class="text-sm font-bold text-on-surface mb-3 uppercase tracking-wider">Final Ranking</p>' +
+      ranking.map(function(r, i) {
+        var rank = i + 1;
+        var color = TEAM_COLORS[i % TEAM_COLORS.length];
+        var initial = ((r.team_name || '?').charAt(0)).toUpperCase();
+        var medalHtml = '';
+        if (rank === 1) medalHtml = '<span class="text-lg">&#x1F947;</span>';
+        else if (rank === 2) medalHtml = '<span class="text-lg">&#x1F948;</span>';
+        else if (rank === 3) medalHtml = '<span class="text-lg">&#x1F949;</span>';
+
+        var elimText = r.eliminated_stage ? 'Eliminated S' + r.eliminated_stage : 'Survived';
+        var elimClass = r.eliminated_stage ? 'text-red-500' : 'text-emerald-600';
+
+        return '<div class="flex items-center gap-3 p-3 rounded-xl border ' +
+          (rank <= 3 ? 'border-amber-200 bg-amber-50/50' : 'border-surface-container-high bg-surface-container-low') + '">' +
+          '<span class="text-lg font-black w-6 text-center ' + (rank <= 3 ? 'text-amber-500' : 'text-on-surface-variant/40') + '">' + rank + '</span>' +
+          medalHtml +
+          '<div class="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0" style="background:' + color + '">' + initial + '</div>' +
+          '<div class="flex-1 min-w-0">' +
+            '<p class="text-sm font-bold text-on-surface truncate">' + (r.team_name || r.team_id) + '</p>' +
+            '<p class="text-[10px] ' + elimClass + ' font-medium">' + elimText + '</p>' +
+          '</div>' +
+          '<div class="text-right">' +
+            '<p class="text-lg font-black text-on-surface tracking-tighter">' + (r.final_score != null ? r.final_score : '--') + '</p>' +
+            '<p class="text-[9px] text-on-surface-variant font-bold uppercase">Score</p>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+  }
+
+  // Idle canvas (admin)
+  function drawAdminIdleCanvas() {
+    if (!adminCtx) return;
+    resizeAdminCanvas();
+    drawBackground(adminCtx, ADMIN_CANVAS_W, ADMIN_CANVAS_H);
+
+    adminCtx.fillStyle = '#64748b';
+    adminCtx.font = '500 14px Inter, sans-serif';
+    adminCtx.textAlign = 'center';
+    adminCtx.fillText('Start a competition to see replay here', ADMIN_CANVAS_W / 2, ADMIN_CANVAS_H / 2 - 10);
+    adminCtx.font = '400 12px Inter, sans-serif';
+    adminCtx.fillStyle = '#475569';
+    adminCtx.fillText('Submit teams, then click Start Competition', ADMIN_CANVAS_W / 2, ADMIN_CANVAS_H / 2 + 14);
+  }
+
+  // ── Resize handling ─────────────────────────────────────────────
+
+  window.addEventListener('resize', function() {
+    resizeStudentCanvas();
+    resizeAdminCanvas();
+  });
+
+  // ── Cleanup ─────────────────────────────────────────────────────
+
   var observer = new MutationObserver(function() {
     if (!document.getElementById('replay-canvas')) {
-      clearInterval(leaderboardInterval);
       if (animFrameId) cancelAnimationFrame(animFrameId);
+      if (adminAnimFrameId) cancelAnimationFrame(adminAnimFrameId);
       observer.disconnect();
     }
   });
@@ -916,7 +1146,9 @@ function init_flappy() {
   }
 
   // ── Init ────────────────────────────────────────────────────────
+  setActiveMode('student');
   drawIdleCanvas();
+  if (adminCtx) drawAdminIdleCanvas();
   checkModelStatus();
   loadStages();
 }

@@ -808,6 +808,29 @@ function init_flappy() {
     });
   }
 
+  // ── Generate Demo Teams ─────────────────────────────────────────
+
+  var adminDemoBtn = document.getElementById('admin-demo-btn');
+  if (adminDemoBtn) {
+    adminDemoBtn.addEventListener('click', function() {
+      adminDemoBtn.disabled = true;
+      adminDemoBtn.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">hourglass_top</span> Generating...';
+
+      API.post('/flappy/demo-generate', {
+        admin_password: adminPw,
+        n_teams: 20,
+      }).then(function(data) {
+        adminDemoBtn.disabled = false;
+        adminDemoBtn.innerHTML = '<span class="material-symbols-outlined text-lg">group_add</span> ' + data.generated + ' Teams Generated';
+        fetchSubmittedTeams();
+      }).catch(function(err) {
+        adminDemoBtn.disabled = false;
+        adminDemoBtn.innerHTML = '<span class="material-symbols-outlined text-lg">group_add</span> Generate 20 Demo Teams';
+        if (adminStartStatus) adminStartStatus.innerHTML = '<p class="text-xs text-error">' + err.message + '</p>';
+      });
+    });
+  }
+
   // ── Start Competition ───────────────────────────────────────────
 
   if (adminStartBtn) {

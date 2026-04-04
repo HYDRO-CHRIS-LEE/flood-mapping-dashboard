@@ -121,10 +121,15 @@
       <div id="admin-teams-list" class="flex flex-wrap gap-2"></div>
     </div>
 
-    <!-- Start competition button -->
-    <button id="admin-start-btn" class="w-full bg-red-600 text-white rounded-full font-bold text-base py-4 mb-6 flex items-center justify-center gap-2 hover:bg-red-700 transition-colors shadow-lg shadow-red-600/20">
-      <span class="material-symbols-outlined text-xl">flag</span> Start Competition
-    </button>
+    <!-- Action buttons -->
+    <div class="flex gap-3 mb-6">
+      <button id="admin-demo-btn" class="flex-1 bg-surface-container-high text-on-surface rounded-full font-bold text-sm py-3 flex items-center justify-center gap-2 hover:bg-surface-container-highest transition-colors">
+        <span class="material-symbols-outlined text-lg">group_add</span> Generate 20 Demo Teams
+      </button>
+      <button id="admin-start-btn" class="flex-1 bg-red-600 text-white rounded-full font-bold text-sm py-3 flex items-center justify-center gap-2 hover:bg-red-700 transition-colors shadow-lg shadow-red-600/20">
+        <span class="material-symbols-outlined text-lg">flag</span> Start Competition
+      </button>
+    </div>
     <div id="admin-start-status" class="mb-6"></div>
 
     <!-- Competition live view -->

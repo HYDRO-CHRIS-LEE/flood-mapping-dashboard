@@ -22,11 +22,50 @@ from backend.services.rf_engine import ALL_FEATURES
 
 COMPETITION_MODELS_DIR = os.path.join(DATA_ROOT, "competition_models")
 SURVIVE_THRESHOLD = 100  # score needed to advance to next stage
-
-# Fixed physics for competition (no feature-ratio advantage)
-COMPETITION_FRAMES_PER_PIPE = 20
-COMPETITION_GAP_SIZE = 130
 COMPETITION_MAX_PIPES = 200
+
+# Stage-specific physics for competition (escalating difficulty)
+COMPETITION_STAGE_PHYSICS = {
+    1: {"frames_per_pipe": 24, "gap_size": 160},   # easy
+    2: {"frames_per_pipe": 20, "gap_size": 140},   # medium
+    3: {"frames_per_pipe": 16, "gap_size": 120},   # hard
+    4: {"frames_per_pipe": 12, "gap_size": 100},   # very hard
+    5: {"frames_per_pipe": 9,  "gap_size": 80},    # extreme
+}
+
+
+def _select_stage_samples_simple(test_df: pd.DataFrame, stage_id: int) -> pd.DataFrame:
+    """Select samples for competition stage without model-dependent confidence.
+
+    Uses label balance as difficulty proxy:
+    Stage 1-2: balanced (50/50 flood/non-flood) — easier
+    Stage 3: slightly more non-flood — harder (more tricky negatives)
+    Stage 4-5: random mix from all samples — hardest
+    """
+    pool_config = STAGES.get(stage_id, {}).get("confidence_pool", "all")
+
+    if pool_config == "top_40":
+        # Easy: balanced, clear-cut samples — oversample to ensure enough
+        flood = test_df[test_df["label"] == 1]
+        nonflood = test_df[test_df["label"] == 0]
+        n = min(len(flood), len(nonflood), COMPETITION_MAX_PIPES // 2)
+        if n > 0:
+            return pd.concat([flood.sample(n=n, random_state=42),
+                              nonflood.sample(n=n, random_state=42)])
+        return test_df
+
+    elif pool_config == "top_60":
+        flood = test_df[test_df["label"] == 1]
+        nonflood = test_df[test_df["label"] == 0]
+        nf = min(len(flood), COMPETITION_MAX_PIPES // 3)
+        nn = min(len(nonflood), COMPETITION_MAX_PIPES * 2 // 3)
+        if nf > 0 and nn > 0:
+            return pd.concat([flood.sample(n=nf, random_state=42),
+                              nonflood.sample(n=nn, random_state=42)])
+        return test_df
+
+    else:  # top_80, all, bottom_50 — use all samples
+        return test_df
 
 
 def list_submitted_teams() -> list[dict]:
@@ -91,18 +130,17 @@ def _run_stage_multi(
 
     seed = STAGE_SEEDS.get(stage_id, [42])[0]
     rng = random.Random(seed)
-    gap_size = COMPETITION_GAP_SIZE
+
+    # Stage-specific physics
+    phys = COMPETITION_STAGE_PHYSICS.get(stage_id, {"frames_per_pipe": 20, "gap_size": 130})
+    gap_size = phys["gap_size"]
+    fps = phys["frames_per_pipe"]
     half_gap = gap_size // 2
-    fps = COMPETITION_FRAMES_PER_PIPE
     bird_speed_x = PIPE_SPACING_X / fps
 
-    # Select samples for this stage using the first team's model as reference
-    ref_artifact = teams[0]["artifact"]
-    ref_features = ref_artifact["features"]
-    stage_samples = _select_stage_samples(
-        ref_artifact["model"], ref_artifact.get("scaler"),
-        ref_features, test_df, stage_id,
-    )
+    # Select samples for this stage — use ALL features for reference model
+    # to ensure fair sample selection across teams
+    stage_samples = _select_stage_samples_simple(test_df, stage_id)
     if len(stage_samples) < COMPETITION_MAX_PIPES:
         # Recycle samples
         base_idx = list(stage_samples.index)
@@ -254,6 +292,109 @@ def _run_stage_multi(
     }
 
 
+def generate_demo_teams(n_teams: int = 20) -> list[dict]:
+    """Generate N fake teams with varying RF models for testing."""
+    from sklearn.ensemble import RandomForestClassifier
+    from backend.services.normalization import validate_events, normalize_by_event
+
+    test_df = _load_test_samples()
+    if test_df is None:
+        raise ValueError("NO_TEST_DATA|No test samples available.")
+
+    # Load raw training data
+    available = []
+    for key in os.listdir(DATA_ROOT):
+        rf_path = os.path.join(DATA_ROOT, key, "RF_training_samples.csv")
+        if os.path.isfile(rf_path):
+            available.append(key)
+
+    from backend.services.rf_engine import load_training_data, HELD_OUT_EVENTS
+    raw_df = load_training_data(available)
+    if raw_df is None:
+        raise ValueError("NO_TEST_DATA|No training data available.")
+
+    keep_cols = [c for c in raw_df.columns if c in ALL_FEATURES + ["label", "event"]]
+    raw_df = raw_df[keep_cols].dropna()
+    valid_df, _ = validate_events(raw_df)
+    df = normalize_by_event(valid_df)
+
+    from backend.services.rf_engine import event_based_split
+    train_df, test_split = event_based_split(df, HELD_OUT_EVENTS)
+
+    TEAM_NAMES = [
+        "FloodHunters", "AquaMinds", "DataDeluge", "TidalForce", "StormChasers",
+        "WaveRiders", "RainMakers", "DamBreakers", "CurrentFlow", "DeepWaters",
+        "PeakSurge", "RiverBots", "MonsoonAI", "FlashFlood", "CycloneNet",
+        "TsunamiLab", "DeltaForce", "BayWatch", "SeaLevel", "ArcticMelt",
+    ]
+
+    teams = []
+    feature_combos = [
+        ["NDWI"],
+        ["NDWI", "elevation"],
+        ["NDWI", "slope"],
+        ["NDWI", "elevation", "slope"],
+        ["NDWI", "MNDWI"],
+        ["NDWI", "MNDWI", "elevation"],
+        ["NDWI", "MNDWI", "elevation", "slope"],
+        ["NDWI", "elevation", "slope", "permanent_water"],
+        ["NDWI", "MNDWI", "elevation", "slope", "permanent_water"],
+        ["elevation", "slope"],
+        ["MNDWI", "elevation"],
+        ["NDWI", "MNDWI", "slope"],
+        ["NDWI", "permanent_water"],
+        ["slope", "permanent_water"],
+        ["NDWI", "elevation", "permanent_water"],
+        ["MNDWI", "slope", "permanent_water"],
+        ["NDWI", "MNDWI", "elevation", "permanent_water"],
+        ["elevation", "slope", "permanent_water"],
+        ["NDWI", "MNDWI", "slope", "permanent_water"],
+        ["MNDWI", "elevation", "slope"],
+    ]
+
+    for i in range(min(n_teams, len(TEAM_NAMES))):
+        features = feature_combos[i % len(feature_combos)]
+        n_trees = random.choice([30, 50, 80, 100, 150])
+        max_depth = random.choice([3, 5, 7, 10])
+
+        available_features = [f for f in features if f in train_df.columns]
+        if not available_features:
+            continue
+
+        X_tr = train_df[available_features].values
+        y_tr = train_df["label"].values
+
+        clf = RandomForestClassifier(
+            n_estimators=n_trees, max_depth=max_depth,
+            random_state=42 + i, n_jobs=-1,
+        )
+        clf.fit(X_tr, y_tr)
+
+        team_id = f"demo-team-{i:03d}"
+        team_name = TEAM_NAMES[i]
+
+        # Save to competition models dir
+        dst_dir = os.path.join(COMPETITION_MODELS_DIR, team_id)
+        os.makedirs(dst_dir, exist_ok=True)
+        artifact = {
+            "model": clf,
+            "features": available_features,
+            "scaler": None,
+            "hyperparameters": {"n_trees": n_trees, "max_depth": max_depth},
+            "metrics": {"f1": 0, "accuracy": 0},
+            "held_out_events": HELD_OUT_EVENTS,
+            "class_labels": {0: "non-flood", 1: "flood"},
+            "artifact_version": "rf_artifact_v1",
+            "team_id": team_id,
+            "team_name": team_name,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        joblib.dump(artifact, os.path.join(dst_dir, "model_artifact.pkl"))
+        teams.append({"team_id": team_id, "team_name": team_name, "features": available_features})
+
+    return teams
+
+
 def run_competition(admin_password: str) -> dict:
     """Run full sequential competition through all stages.
 
@@ -305,10 +446,11 @@ def run_competition(admin_password: str) -> dict:
             "scores": result["scores"],
         })
 
+        phys = COMPETITION_STAGE_PHYSICS.get(stage_id, {"gap_size": 130})
         replay[stage_id] = {
             "frames": result["frames"],
             "pipe_map": result["pipe_map"],
-            "gap_size": COMPETITION_GAP_SIZE,
+            "gap_size": phys["gap_size"],
         }
 
         # Record eliminated teams (earliest eliminated first)

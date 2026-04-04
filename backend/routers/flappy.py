@@ -14,6 +14,7 @@ from backend.services.competition_engine import (
     submit_for_competition,
     list_submitted_teams,
     run_competition,
+    generate_demo_teams,
 )
 
 router = APIRouter(prefix="/api/flappy", tags=["flappy"])
@@ -100,6 +101,24 @@ def submitted_teams():
 
 class CompetitionRequest(BaseModel):
     admin_password: str
+
+
+class DemoRequest(BaseModel):
+    admin_password: str
+    n_teams: int = 20
+
+
+@router.post("/demo-generate")
+def demo_generate(body: DemoRequest):
+    """Admin: generate N fake teams with varying RF models for testing."""
+    if body.admin_password != "earthai2026":
+        raise HTTPException(status_code=403, detail={"ok": False, "error": "INVALID_PASSWORD", "message": "Invalid password"})
+    try:
+        teams = generate_demo_teams(body.n_teams)
+    except ValueError as e:
+        parts = str(e).split("|", 1)
+        raise HTTPException(status_code=400, detail={"ok": False, "error": parts[0], "message": parts[-1]})
+    return {"ok": True, "data": {"generated": len(teams), "teams": teams}}
 
 
 @router.post("/competition")

@@ -23,8 +23,6 @@ from backend.services.rf_engine import (
 
 router = APIRouter(prefix="/api/classifier", tags=["classifier"])
 
-# Temporary in-memory store for trained models (persisted on submit)
-_trained_models: dict[str, dict] = {}
 MODELS_DIR = os.path.join(DATA_ROOT, "rf_models")
 
 
@@ -144,11 +142,15 @@ def train_classifier(body: TrainRequest):
                     "message": "Training failed — not enough data after preprocessing."},
         )
 
-    if body.team_id:
-        _trained_models[body.team_id] = {
+    # Persist model artifact to disk immediately (survives server restarts)
+    if body.team_id and model_obj is not None:
+        from datetime import datetime, timezone
+        team_dir = os.path.join(MODELS_DIR, body.team_id)
+        os.makedirs(team_dir, exist_ok=True)
+        artifact = {
             "model": model_obj,
-            "scaler": scaler_obj,
             "features": body.features,
+            "scaler": scaler_obj,
             "hyperparameters": {
                 "n_trees": body.n_trees,
                 "max_depth": body.max_depth,
@@ -161,7 +163,15 @@ def train_classifier(body: TrainRequest):
                 "sample_pct": body.sample_pct,
                 "outlier": body.outlier,
             },
+            "metrics": metrics,
+            "held_out_events": HELD_OUT_EVENTS,
+            "class_labels": {0: "non-flood", 1: "flood"},
+            "artifact_version": "rf_artifact_v1",
+            "team_id": body.team_id,
+            "team_name": "",
+            "created_at": datetime.now(timezone.utc).isoformat(),
         }
+        joblib.dump(artifact, os.path.join(team_dir, "model_artifact.pkl"))
 
     hints = generate_hints(metrics, body.features, body.n_trees)
 
@@ -234,31 +244,18 @@ def submit_to_leaderboard(body: SubmitRequest):
         )
         conn.commit()
 
-        # Persist model artifact to disk
-        trained = _trained_models.get(body.team_id)
-        if trained:
-            team_dir = os.path.join(MODELS_DIR, body.team_id)
-            os.makedirs(team_dir, exist_ok=True)
-            artifact = {
-                "model": trained["model"],
-                "features": trained["features"],
-                "scaler": trained["scaler"],
-                "hyperparameters": trained["hyperparameters"],
-                "metrics": {
-                    "f1": body.f1,
-                    "accuracy": body.accuracy,
-                    "precision": body.precision_val,
-                    "recall": body.recall,
-                },
-                "held_out_events": HELD_OUT_EVENTS,
-                "class_labels": {0: "non-flood", 1: "flood"},
-                "artifact_version": "rf_artifact_v1",
-                "team_id": body.team_id,
-                "team_name": body.team_name,
-                "created_at": datetime.now(timezone.utc).isoformat(),
+        # Update model artifact with team_name (artifact saved at train time)
+        artifact_path = os.path.join(MODELS_DIR, body.team_id, "model_artifact.pkl")
+        if os.path.exists(artifact_path):
+            artifact = joblib.load(artifact_path)
+            artifact["team_name"] = body.team_name
+            artifact["metrics"] = {
+                "f1": body.f1,
+                "accuracy": body.accuracy,
+                "precision": body.precision_val,
+                "recall": body.recall,
             }
-            joblib.dump(artifact, os.path.join(team_dir, "model_artifact.pkl"))
-            _trained_models.pop(body.team_id, None)
+            joblib.dump(artifact, artifact_path)
     finally:
         conn.close()
 

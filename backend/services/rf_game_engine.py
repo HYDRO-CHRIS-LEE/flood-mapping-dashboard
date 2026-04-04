@@ -32,12 +32,40 @@ FLAP_VELOCITY = -8.0
 MAX_PIPES = 50
 PIPE_SPACING_X = 250
 
-# Stage definitions (classification difficulty, not physics)
+# ── Feature efficiency → physics difficulty ──
+# feature_ratio = n_used / n_available (0.0 ~ 1.0)
+# Higher ratio (more features) = slower pipes, wider gap = easier physically
+# Lower ratio (fewer features) = faster pipes, narrower gap = harder physically
+#
+# Frames-per-pipe: lerp from FAST (ratio=0) to SLOW (ratio=1)
+FRAMES_PER_PIPE_FAST = 15   # fewest features → fastest
+FRAMES_PER_PIPE_SLOW = 35   # all features → slowest
+# Gap size: lerp from NARROW (ratio=0) to WIDE (ratio=1)
+GAP_SIZE_NARROW = 110
+GAP_SIZE_WIDE = 170
+
+
+def _physics_for_feature_ratio(feature_ratio: float) -> tuple[int, int]:
+    """Return (frames_per_pipe, gap_size) based on feature usage ratio."""
+    r = max(0.0, min(1.0, feature_ratio))
+    frames = int(FRAMES_PER_PIPE_FAST + r * (FRAMES_PER_PIPE_SLOW - FRAMES_PER_PIPE_FAST))
+    gap = int(GAP_SIZE_NARROW + r * (GAP_SIZE_WIDE - GAP_SIZE_NARROW))
+    return frames, gap
+
+
+# ── Stage definitions ──
+# Two independent difficulty axes:
+#   1. confidence_pool: which test samples (classification difficulty)
+#   2. physics affected by feature count (physical difficulty)
+#
+# Design: 100% features → stages 1-3 passable, stage 4-5 challenging
+# The pass_avg values are calibrated so that even with slow pipes (100% features),
+# a model with ~90%+ accuracy can reach pass_avg on stages 1-3.
 STAGES = {
-    1: {"label": "First Flight",            "confidence_pool": "top_40", "pass_avg": 8},
-    2: {"label": "Getting Steady",          "confidence_pool": "top_60", "pass_avg": 6},
-    3: {"label": "Tighter Gaps",            "confidence_pool": "top_80", "pass_avg": 5},
-    4: {"label": "Under Pressure",          "confidence_pool": "all",    "pass_avg": 4},
+    1: {"label": "First Flight",            "confidence_pool": "top_40", "pass_avg": 5},
+    2: {"label": "Getting Steady",          "confidence_pool": "top_60", "pass_avg": 4},
+    3: {"label": "Tighter Gaps",            "confidence_pool": "top_80", "pass_avg": 3},
+    4: {"label": "Under Pressure",          "confidence_pool": "all",    "pass_avg": 3},
     5: {"label": "Survival of the Fittest", "confidence_pool": "bottom_50", "pass_avg": None},
 }
 
@@ -48,8 +76,6 @@ STAGE_SEEDS = {
     4: [4007, 4019, 4027, 4049, 4057, 4073, 4091, 4099, 4111, 4127],
     5: [5003, 5009, 5021, 5039, 5051, 5059, 5077, 5081, 5099, 5107],
 }
-
-GAP_SIZE = 150
 
 
 def load_model_artifact(team_id: str) -> dict | None:
@@ -139,6 +165,7 @@ def _select_stage_samples(
 def _run_episode(
     model, scaler, features: list[str],
     samples: pd.DataFrame, seed: int,
+    frames_per_pipe: int = 30, gap_size: int = 150,
 ) -> dict:
     """Run one game episode. Returns score, frames, classification events."""
     rng = random.Random(seed)
@@ -154,12 +181,14 @@ def _run_episode(
     total_correct = 0
     n_seen = 0
 
+    half_gap = gap_size // 2
+
     for pipe_idx in range(min(MAX_PIPES, len(sample_indices))):
         if not alive:
             break
 
-        # Generate pipe position
-        gap_y = rng.randint(80, PLAYABLE_HEIGHT - 80)
+        # Generate pipe position (constrained by gap size)
+        gap_y = rng.randint(half_gap + 20, PLAYABLE_HEIGHT - half_gap - 20)
 
         # Classify sample
         sample_row = samples.loc[sample_indices[pipe_idx]]
@@ -184,7 +213,7 @@ def _run_episode(
             # Safe trajectory: smooth lerp toward gap center
             start_y = bird_y
             target_y = float(gap_y)
-            n_frames = 30
+            n_frames = frames_per_pipe
             for f in range(n_frames):
                 # Smooth ease-in-out interpolation
                 t = (f + 1) / n_frames
@@ -201,7 +230,7 @@ def _run_episode(
                     "alive": True,
                     "score": score,
                     "action": action,
-                    "pipes": [{"x": round(pipe_x, 1), "gap_y": gap_y, "gap_size": GAP_SIZE}],
+                    "pipes": [{"x": round(pipe_x, 1), "gap_y": gap_y, "gap_size": gap_size}],
                 })
 
             bird_y = target_y
@@ -221,7 +250,7 @@ def _run_episode(
                     "alive": is_alive,
                     "score": score,
                     "action": -1 if not is_alive else 0,
-                    "pipes": [{"x": round(pipe_x, 1), "gap_y": gap_y, "gap_size": GAP_SIZE}],
+                    "pipes": [{"x": round(pipe_x, 1), "gap_y": gap_y, "gap_size": gap_size}],
                 })
             alive = False
 
@@ -271,6 +300,12 @@ def run_rf_game(
             f"ARTIFACT_INCOMPATIBLE|Features missing from test data: {missing}"
         )
 
+    # Compute feature efficiency ratio → physics difficulty
+    n_available = len(ALL_FEATURES)
+    n_used = len(features)
+    feature_ratio = n_used / n_available if n_available > 0 else 1.0
+    frames_per_pipe, gap_size = _physics_for_feature_ratio(feature_ratio)
+
     stage_samples = _select_stage_samples(model, scaler, features, test_df, stage_id)
     if len(stage_samples) < 10:
         raise ValueError(
@@ -283,7 +318,8 @@ def run_rf_game(
     scores = []
 
     for i, seed in enumerate(seeds):
-        ep = _run_episode(model, scaler, features, stage_samples, seed)
+        ep = _run_episode(model, scaler, features, stage_samples, seed,
+                          frames_per_pipe=frames_per_pipe, gap_size=gap_size)
         ep["episode_index"] = i
         ep["passed"] = (
             STAGES[stage_id]["pass_avg"] is not None
@@ -304,6 +340,13 @@ def run_rf_game(
         "team_id": team_id,
         "team_name": artifact.get("team_name", ""),
         "mode": mode,
+        "physics": {
+            "feature_ratio": round(feature_ratio, 2),
+            "features_used": n_used,
+            "features_available": n_available,
+            "frames_per_pipe": frames_per_pipe,
+            "gap_size": gap_size,
+        },
         "episodes": episodes,
         "summary": {
             "avg_score": avg_score,
